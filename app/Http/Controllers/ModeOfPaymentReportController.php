@@ -18,7 +18,9 @@ class ModeOfPaymentReportController extends Controller
         $scopedToUser = Setting::reportScopedByUser() && $user && ! $user->isManager();
         $scopedUserName = $scopedToUser ? $user->name : null;
 
-        return view('reports.mode-of-payment', compact('posProfile', 'scopedToUser', 'scopedUserName'));
+        $dateLocked = Setting::reportDateLocked();
+
+        return view('reports.mode-of-payment', compact('posProfile', 'scopedToUser', 'scopedUserName', 'dateLocked'));
     }
 
     public function fetch(Request $request)
@@ -39,9 +41,17 @@ class ModeOfPaymentReportController extends Controller
 
         // Sumber tunggal: report POS Register — satu baris per transaksi, sudah
         // membawa metode bayarnya (split payment jadi mode gabungan "BCA QR, CASH").
+        // Batas rentang tanggal (Pengaturan Toko): bila 'today', semua role selain
+        // admin dikunci ke tanggal hari ini — rentang dari request diabaikan.
+        $dateFrom = $request->date_from;
+        $dateTo = $request->date_to;
+        if (Setting::reportDateLocked()) {
+            $dateFrom = $dateTo = today()->toDateString();
+        }
+
         $result = $erp->fetchPosRegister(
-            $request->date_from,
-            $request->date_to,
+            $dateFrom,
+            $dateTo,
             $request->input('pos_profile', ''),
             $owner
         );

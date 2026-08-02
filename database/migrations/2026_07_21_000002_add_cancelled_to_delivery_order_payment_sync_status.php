@@ -12,12 +12,22 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // SQLite tak punya tipe ENUM (kolomnya sudah TEXT), jadi tak perlu diubah.
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         DB::statement("ALTER TABLE delivery_order_payments MODIFY erp_sync_status ENUM('none','synced','failed','cancelled') NOT NULL DEFAULT 'none'");
     }
 
     public function down(): void
     {
         DB::statement("UPDATE delivery_order_payments SET erp_sync_status = 'failed' WHERE erp_sync_status = 'cancelled'");
+
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         DB::statement("ALTER TABLE delivery_order_payments MODIFY erp_sync_status ENUM('none','synced','failed') NOT NULL DEFAULT 'none'");
     }
 };

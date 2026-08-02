@@ -31,10 +31,16 @@
                 value="{{ request('search') }}" style="max-width:200px">
             <input type="text" name="erp_invoice" class="form-control" placeholder="Cari No. Sync ERP..."
                 value="{{ request('erp_invoice') }}" style="max-width:200px">
+            @if($dateLocked)
+            <span class="badge badge-warning" style="display:inline-flex;align-items:center;gap:6px;padding:0 12px">
+                <i class="fas fa-calendar-day"></i> Hari ini ({{ today()->format('d/m/Y') }})
+            </span>
+            @else
             <input type="date" name="date_from" class="form-control"
                 value="{{ request('date_from') }}" style="max-width:160px">
             <input type="date" name="date_to" class="form-control"
                 value="{{ request('date_to') }}" style="max-width:160px">
+            @endif
             <select name="status" class="form-control form-select" style="max-width:150px">
                 <option value="">Semua Status</option>
                 <option value="completed" {{ request('status')=='completed'?'selected':'' }}>Selesai</option>

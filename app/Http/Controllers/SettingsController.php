@@ -11,7 +11,7 @@ class SettingsController extends Controller
     private const STORE_KEYS = [
         'store_name', 'store_tagline', 'store_address',
         'store_phone', 'store_email', 'receipt_footer', 'pos_class',
-        'pos_layout', 'pos_product_display', 'report_scope',
+        'pos_layout', 'pos_product_display', 'report_scope', 'report_date_limit',
         'service_charge_enabled', 'service_charge_pct',
         'pb1_enabled', 'pb1_pct',
         'thermal_printer_device', 'thermal_printer_name',
@@ -104,6 +104,7 @@ class SettingsController extends Controller
             'pos_layout'             => 'nullable|in:index,quick,express',
             'pos_product_display'    => 'nullable|in:image,text',
             'report_scope'           => 'nullable|in:all,user',
+            'report_date_limit'      => 'nullable|in:all,today',
             'service_charge_enabled' => 'nullable|in:0,1',
             'service_charge_pct'     => 'nullable|numeric|min:0|max:100',
             'pb1_enabled'            => 'nullable|in:0,1',

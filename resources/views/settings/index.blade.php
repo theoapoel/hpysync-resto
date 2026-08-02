@@ -172,6 +172,36 @@
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label">Rentang Tanggal Laporan</label>
+                    <div style="display:flex;gap:12px;margin-top:4px">
+                        <label style="flex:1;cursor:pointer">
+                            <input type="radio" name="report_date_limit" value="all"
+                                {{ ($settings['report_date_limit'] ?: 'all') === 'all' ? 'checked' : '' }}
+                                style="display:none" class="report-datelimit-radio">
+                            <div class="report-datelimit-option" style="border:2px solid var(--border);border-radius:10px;padding:14px;text-align:center;transition:all .2s">
+                                <div style="font-size:28px;margin-bottom:6px">🗓️</div>
+                                <div style="font-size:13px;font-weight:600">Bebas</div>
+                                <div style="font-size:11px;color:var(--text3);margin-top:2px">Semua role bisa memilih rentang tanggal</div>
+                            </div>
+                        </label>
+                        <label style="flex:1;cursor:pointer">
+                            <input type="radio" name="report_date_limit" value="today"
+                                {{ ($settings['report_date_limit'] ?: 'all') === 'today' ? 'checked' : '' }}
+                                style="display:none" class="report-datelimit-radio">
+                            <div class="report-datelimit-option" style="border:2px solid var(--border);border-radius:10px;padding:14px;text-align:center;transition:all .2s">
+                                <div style="font-size:28px;margin-bottom:6px">📅</div>
+                                <div style="font-size:13px;font-weight:600">Hari Ini Saja</div>
+                                <div style="font-size:11px;color:var(--text3);margin-top:2px">Laporan terkunci ke tanggal hari ini</div>
+                            </div>
+                        </label>
+                    </div>
+                    <p style="font-size:12px;color:var(--text3);margin-top:6px">
+                        Berlaku untuk Riwayat Transaksi, Laporan Online, Rekap Metode Bayar, dan Laporan Delivery Order.
+                        Admin selalu bebas memilih tanggal; kasir, manager, dan role lain terkunci ke hari ini.
+                    </p>
+                </div>
+
+                <div class="form-group">
                     <label class="form-label">Layout Kasir</label>
                     <input type="hidden" name="pos_layout" id="posLayoutInput" value="{{ $settings['pos_layout'] ?: 'index' }}">
                     <div style="display:flex;gap:12px;margin-top:4px">
@@ -388,6 +418,20 @@ document.querySelectorAll('.report-scope-radio').forEach(r => {
     r.addEventListener('change', updateReportScopeUI);
 });
 updateReportScopeUI();
+
+// Radio button visual untuk batas rentang tanggal laporan
+function updateReportDateLimitUI() {
+    document.querySelectorAll('.report-datelimit-radio').forEach(radio => {
+        const box = radio.nextElementSibling;
+        box.style.borderColor = radio.checked ? 'var(--blue)' : 'var(--border)';
+        box.style.background  = radio.checked ? 'var(--blue-light, #E8F0FE)' : '';
+        box.style.color       = radio.checked ? 'var(--blue)' : '';
+    });
+}
+document.querySelectorAll('.report-datelimit-radio').forEach(r => {
+    r.addEventListener('change', updateReportDateLimitUI);
+});
+updateReportDateLimitUI();
 
 // Layout Kasir selector
 function selectPosLayout(el) {

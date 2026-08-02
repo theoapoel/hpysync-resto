@@ -16,11 +16,13 @@
               style="display:grid;grid-template-columns:repeat(4,1fr) auto;gap:12px;align-items:flex-end">
             <div class="form-group" style="margin-bottom:0">
                 <label class="form-label">Dari Tgl Kirim</label>
-                <input type="date" name="date_from" class="form-control" value="{{ $from->format('Y-m-d') }}">
+                <input type="date" name="date_from" class="form-control" value="{{ $from->format('Y-m-d') }}"
+                       @disabled($dateLocked)>
             </div>
             <div class="form-group" style="margin-bottom:0">
                 <label class="form-label">Sampai Tgl Kirim</label>
-                <input type="date" name="date_to" class="form-control" value="{{ $to->format('Y-m-d') }}">
+                <input type="date" name="date_to" class="form-control" value="{{ $to->format('Y-m-d') }}"
+                       @disabled($dateLocked)>
             </div>
             <div class="form-group" style="margin-bottom:0">
                 <label class="form-label">Status Order</label>
@@ -43,6 +45,11 @@
             <button type="submit" class="btn btn-primary" style="height:42px;border-radius:8px">
                 <i class="fas fa-search"></i> Tampilkan
             </button>
+            @if($dateLocked)
+            <p style="grid-column:1/-1;margin:0;font-size:12px;color:var(--text3)">
+                <i class="fas fa-lock"></i> Laporan dikunci ke tanggal hari ini ({{ today()->format('d/m/Y') }}).
+            </p>
+            @endif
         </form>
     </div>
 </div>

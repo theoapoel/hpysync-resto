@@ -10,7 +10,8 @@ class OnlineReportController extends Controller
     public function index()
     {
         $posProfile = \App\Models\Setting::get('erpnext_pos_profile', '');
-        return view('reports.online', compact('posProfile'));
+        $dateLocked = \App\Models\Setting::reportDateLocked();
+        return view('reports.online', compact('posProfile', 'dateLocked'));
     }
 
     public function fetch(Request $request)
@@ -21,10 +22,18 @@ class OnlineReportController extends Controller
             'pos_profile' => 'nullable|string|max:255',
         ]);
 
+        // Batas rentang tanggal (Pengaturan Toko): bila 'today', semua role selain
+        // admin dikunci ke tanggal hari ini — rentang dari request diabaikan.
+        $dateFrom = $request->date_from;
+        $dateTo   = $request->date_to;
+        if (\App\Models\Setting::reportDateLocked()) {
+            $dateFrom = $dateTo = today()->toDateString();
+        }
+
         $erp    = new ErpNextService();
         $result = $erp->fetchPosInvoices(
-            $request->date_from,
-            $request->date_to,
+            $dateFrom,
+            $dateTo,
             $request->input('pos_profile', '')
         );
 
@@ -41,8 +50,8 @@ class OnlineReportController extends Controller
         // Metode bayar per transaksi diambil dari report POS Register (split payment
         // muncul sebagai mode gabungan, mis. "BCA QR, CASH").
         $register = $erp->fetchPosRegister(
-            $request->date_from,
-            $request->date_to,
+            $dateFrom,
+            $dateTo,
             $request->input('pos_profile', '')
         );
 

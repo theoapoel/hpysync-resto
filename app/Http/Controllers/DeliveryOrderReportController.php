@@ -17,12 +17,21 @@ class DeliveryOrderReportController extends Controller
     public function index(Request $request)
     {
         // Rentang tanggal berdasarkan tanggal pengiriman (delivery_date). Default: bulan berjalan.
-        $from = $request->filled('date_from')
-            ? Carbon::parse($request->date_from)->startOfDay()
-            : Carbon::today()->startOfMonth();
-        $to = $request->filled('date_to')
-            ? Carbon::parse($request->date_to)->endOfDay()
-            : Carbon::today()->endOfMonth();
+        // Batas rentang tanggal (Pengaturan Toko): bila 'today', semua role selain
+        // admin dikunci ke tanggal hari ini — rentang dari request diabaikan.
+        $dateLocked = \App\Models\Setting::reportDateLocked();
+
+        if ($dateLocked) {
+            $from = Carbon::today()->startOfDay();
+            $to = Carbon::today()->endOfDay();
+        } else {
+            $from = $request->filled('date_from')
+                ? Carbon::parse($request->date_from)->startOfDay()
+                : Carbon::today()->startOfMonth();
+            $to = $request->filled('date_to')
+                ? Carbon::parse($request->date_to)->endOfDay()
+                : Carbon::today()->endOfMonth();
+        }
 
         $status = $request->input('status', '');       // '', draft, confirmed, delivering, completed
         $payment = $request->input('payment', '');      // '', unpaid, partial, paid
@@ -45,7 +54,7 @@ class DeliveryOrderReportController extends Controller
         $withInvoice = $orders->filter(fn ($o) => ! empty($o->erp_sales_invoice))->count();
 
         return view('reports.delivery-order', compact(
-            'orders', 'from', 'to', 'status', 'payment',
+            'orders', 'from', 'to', 'status', 'payment', 'dateLocked',
             'totalSales', 'totalPaid', 'totalOutstanding', 'count', 'withInvoice'
         ));
     }

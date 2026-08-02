@@ -1006,6 +1006,60 @@ document.getElementById('searchInput').addEventListener('input', function() {
     }, 300);
 });
 
+// Scanner barcode mengetik cepat lalu mengirim Enter. Kalau yang diketik cocok persis
+// dengan barcode/SKU satu produk, langsung masuk keranjang dan kolom dikosongkan supaya
+// siap untuk scan berikutnya. Selain itu perlakukan seperti pencarian biasa.
+document.getElementById('searchInput').addEventListener('keydown', async function(e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+
+    const term = this.value.trim();
+    if (!term) return;
+
+    clearTimeout(searchTimeout);
+
+    const url = '{{ route("pos.search-products") }}' + '?q=' + encodeURIComponent(term);
+    let products = [];
+    try {
+        const resp = await fetch(url, { headers: {'Accept':'application/json','X-CSRF-TOKEN':csrf} });
+        products = await resp.json();
+        if (!Array.isArray(products)) products = [];
+    } catch(err) { console.error(err); return; }
+
+    const key = term.toLowerCase();
+    const exact = products.filter(p =>
+        (p.barcode || '').toLowerCase() === key || (p.sku || '').toLowerCase() === key
+    );
+
+    if (exact.length === 1) {
+        addProductToCart(exact[0]);
+        this.value = '';
+        loadProducts(currentCategoryFilter);
+        return;
+    }
+
+    // Tidak ada yang cocok persis (atau ambigu) — tampilkan hasilnya biar kasir yang pilih.
+    allProducts = products;
+    renderProducts(products);
+    if (products.length === 0) toast('⚠ Produk "' + term + '" tidak ditemukan.', 'warn');
+});
+
+// Jembatan dari objek produk (hasil scan) ke addToCart yang membaca data-* kartu produk.
+function addProductToCart(p) {
+    addToCart({ dataset: {
+        id:         p.id,
+        name:       p.name,
+        price:      p.price,
+        basePrice:  p.price,
+        sku:        p.sku || '',
+        stock:      p.stock,
+        unit:       p.unit || '',
+        tax:        p.tax_rate,
+        track:      p.track_stock ? '1' : '0',
+        erpCode:    p.erp_item_code || '',
+    }});
+}
+
 document.addEventListener('keydown', e => {
     if (e.key === 'F3') { e.preventDefault(); document.getElementById('searchInput').focus(); document.getElementById('searchInput').select(); }
     if (e.key === 'Escape') { ['customerModal','receiptModal','itemNoteModal','itemDiscountModal'].forEach(id => closeModal(id)); }
@@ -1538,6 +1592,17 @@ async function addNewCustomer() {
 // ============================================================
 // CHECKOUT
 // ============================================================
+// Kunci idempoten: satu nilai untuk satu isi keranjang, dipakai ulang oleh setiap
+// percobaan kirim, dan baru diganti setelah checkout benar-benar berhasil. Dengan
+// begitu klik dobel atau kirim ulang setelah koneksi putus tetap menghasilkan satu
+// transaksi — server mengenalinya sebagai percobaan yang sama.
+let checkoutKey = null;
+
+function newCheckoutKey() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'ck-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
+
 async function processCheckout() {
     if (cart.length === 0) return;
     if (selectedOrderType === 'delivery' && !selectedDeliveryPlatform) { toast('Pilih platform delivery (GoFood/GrabFood/ShopeeFood) terlebih dahulu!', 'err'); return; }
@@ -1551,11 +1616,15 @@ async function processCheckout() {
     btn.disabled = true;
     document.getElementById('checkoutBtnText').innerHTML = '<span class="spinner"></span> Memproses...';
 
+    // Dibuat sekali per keranjang; percobaan kirim berikutnya memakai nilai yang sama.
+    if (!checkoutKey) checkoutKey = newCheckoutKey();
+
     const discAmt = parseFloat(document.getElementById('discountAmt').value) || 0;
     const discPct = parseFloat(document.getElementById('discountPct').value) || 0;
     const tableNumber = document.getElementById('tableNumber').value.trim();
 
     const payload = {
+        idempotency_key: checkoutKey,
         items: cart.map(i => ({ product_id: i.id, quantity: i.qty, price: i.price, discount_amount: i.discount, note: i.note || '' })),
         customer_id: selectedCustomer?.id || null,
         payment_method: selectedPayment,
@@ -1577,9 +1646,14 @@ async function processCheckout() {
         });
         const data = await resp.json();
         if (data.success) {
+            // Kunci dilepas hanya setelah berhasil, supaya keranjang berikutnya
+            // memakai kunci baru.
+            checkoutKey = null;
             lastReceipt = data.transaction;
             showReceipt(data.transaction);
-            toast('Pesanan berhasil: ' + data.invoice_no, 'ok');
+            toast(data.duplicate
+                ? 'Pesanan ini sudah tersimpan: ' + data.invoice_no
+                : 'Pesanan berhasil: ' + data.invoice_no, 'ok');
         } else {
             toast('Gagal: ' + (data.error || 'Unknown error'), 'err');
         }

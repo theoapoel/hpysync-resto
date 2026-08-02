@@ -185,7 +185,26 @@ class PosController extends Controller
             'items.*.price' => 'required|numeric|min:0',
             'payment_method' => 'required|string',
             'paid_amount' => 'required|numeric|min:0',
+            'idempotency_key' => 'nullable|string|max:64',
         ]);
+
+        // Checkout ganda (klik dobel, atau koneksi putus lalu kasir mengulang) tidak
+        // boleh menghasilkan dua transaksi: keduanya akan tersync ke ERP HPY sebagai
+        // penjualan yang sama-sama sah dan tidak bisa dibedakan lagi sesudahnya.
+        // Kunci dikirim klien, satu nilai per isi keranjang, dan hanya diganti setelah
+        // checkout berhasil.
+        $idempotencyKey = $request->input('idempotency_key');
+        if ($idempotencyKey) {
+            $existing = Transaction::where('idempotency_key', $idempotencyKey)->first();
+            if ($existing) {
+                return response()->json([
+                    'success' => true,
+                    'duplicate' => true,
+                    'transaction' => $existing->load('items.product', 'customer', 'user'),
+                    'invoice_no' => $existing->invoice_no,
+                ]);
+            }
+        }
 
         DB::beginTransaction();
         try {
@@ -283,6 +302,7 @@ class PosController extends Controller
 
             $transaction = Transaction::create([
                 'invoice_no'            => Transaction::generateInvoiceNo(),
+                'idempotency_key'       => $idempotencyKey ?: null,
                 'user_id'               => Auth::id(),
                 'customer_id'           => $request->customer_id,
                 'status'                => 'completed',
@@ -336,6 +356,26 @@ class PosController extends Controller
                 'invoice_no' => $transaction->invoice_no,
             ]);
 
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // Dua request kembar tiba nyaris bersamaan: keduanya lolos pemeriksaan di
+            // awal, lalu unique index menolak yang kalah cepat. Transaksinya sudah
+            // dibuat oleh request pemenang, jadi kembalikan itu — bukan error.
+            DB::rollBack();
+
+            $winner = $idempotencyKey
+                ? Transaction::where('idempotency_key', $idempotencyKey)->first()
+                : null;
+
+            if (! $winner) {
+                return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+            }
+
+            return response()->json([
+                'success' => true,
+                'duplicate' => true,
+                'transaction' => $winner->load('items.product', 'customer', 'user'),
+                'invoice_no' => $winner->invoice_no,
+            ]);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);

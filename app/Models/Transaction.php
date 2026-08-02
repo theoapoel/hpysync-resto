@@ -19,6 +19,7 @@ class Transaction extends Model
         'order_type', 'delivery_platform', 'table_number',
         'service_charge_pct', 'service_charge_amount',
         'pb1_pct', 'pb1_amount',
+        'idempotency_key',
         'erp_pos_invoice', 'erp_synced_at',
         'erp_sync_status', 'erp_sync_error',
     ];

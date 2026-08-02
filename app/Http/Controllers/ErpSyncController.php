@@ -13,6 +13,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\ErpNextService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -86,7 +87,26 @@ class ErpSyncController extends Controller
 
     public function syncAll()
     {
-        $result = $this->erp->syncPendingTransactions();
+        // Kunci lintas-request: tombolnya memang di-disable di sisi klien, tapi itu
+        // hanya berlaku per tab. Dua admin (atau dua tab) yang menekan bersamaan akan
+        // mengambil himpunan baris 'pending' yang sama sebelum sempat berubah jadi
+        // 'synced', lalu memPOST dokumen yang sama dua kali.
+        $lock = Cache::lock('erp-sync-all', 600);
+
+        if (! $lock->get()) {
+            return response()->json([
+                'total' => 0, 'success' => 0, 'failed' => 0, 'errors' => [],
+                'locked' => true,
+                'message' => 'Sync lain sedang berjalan. Tunggu sampai selesai.',
+            ], 409);
+        }
+
+        try {
+            $result = $this->erp->syncPendingTransactions();
+        } finally {
+            $lock->release();
+        }
+
         return response()->json($result);
     }
 
@@ -99,6 +119,9 @@ class ErpSyncController extends Controller
 
     public function retryFailed()
     {
+        // Aman direset borongan: baris yang dokumennya sudah terbuat di ERP menyimpan
+        // erp_pos_invoice, dan syncTransaction() akan menyelesaikan submit-nya alih-alih
+        // membuat POS Invoice baru.
         $failed = Transaction::where('erp_sync_status', 'failed')
             ->where('status', 'completed')
             ->update(['erp_sync_status' => 'pending']);
@@ -168,13 +191,18 @@ class ErpSyncController extends Controller
                     'price'            => (float) ($item['standard_rate'] ?? 0),
                     'cost_price'       => (float) ($item['valuation_rate'] ?? 0),
                     'unit'             => $item['stock_uom'] ?? 'Nos',
-                    'barcode'          => $item['barcode'] ?? null,
                     'category_id'      => $category?->id,
                     'item_category_id' => $itemCategory?->id,
                     'erp_item_code'    => $item['name'],
                     'erp_last_sync'    => now(),
                     'is_active'        => !($item['disabled'] ?? false),
                 ];
+
+                // Key 'barcode' hanya ada bila berhasil ditarik dari child table 'Item Barcode'.
+                // Kalau tidak ada, barcode lokal dibiarkan apa adanya.
+                if (array_key_exists('barcode', $item)) {
+                    $data['barcode'] = $item['barcode'];
+                }
 
                 // Download image only when ERPNext has one and the path has changed
                 if ($erpImage && $erpImage !== ($exists?->erp_image)) {

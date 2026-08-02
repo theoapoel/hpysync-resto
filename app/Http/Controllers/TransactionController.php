@@ -19,8 +19,15 @@ class TransactionController extends Controller {
         if ($request->erp_invoice) {
             $query->where('erp_pos_invoice','LIKE',"%{$request->erp_invoice}%");
         }
-        if ($request->date_from) $query->whereDate('created_at','>=',$request->date_from);
-        if ($request->date_to) $query->whereDate('created_at','<=',$request->date_to);
+        // Batas rentang tanggal (Pengaturan Toko): bila 'today', semua role selain
+        // admin dikunci ke tanggal hari ini — filter dari request diabaikan.
+        $dateLocked = Setting::reportDateLocked();
+        if ($dateLocked) {
+            $query->whereDate('created_at', today());
+        } else {
+            if ($request->date_from) $query->whereDate('created_at','>=',$request->date_from);
+            if ($request->date_to) $query->whereDate('created_at','<=',$request->date_to);
+        }
         if ($request->status) $query->where('status',$request->status);
         if ($request->payment_method) $query->where('payment_method',$request->payment_method);
         // Ringkasan seluruh hasil filter (bukan hanya halaman yang tampil).
@@ -57,7 +64,7 @@ class TransactionController extends Controller {
             ->sort(fn ($a, $b) => strcasecmp($a, $b))
             ->values();
 
-        return view('transactions.index', compact('transactions','paymentMethods','summary','erpStates','erpCheckFailed'));
+        return view('transactions.index', compact('transactions','paymentMethods','summary','erpStates','erpCheckFailed','dateLocked'));
     }
 
     public function show(Transaction $transaction) {

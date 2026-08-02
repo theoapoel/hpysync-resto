@@ -183,6 +183,27 @@ class ErpNextService
     // =========================================================
     public function syncTransaction(Transaction $transaction): array
     {
+        // Idempoten — satu transaksi hanya boleh punya satu POS Invoice. Dokumen yang
+        // sudah pernah dibuat (termasuk yang tertinggal sebagai draft karena submitnya
+        // gagal) tidak dibuat ulang, cukup diselesaikan submit-nya.
+        if (! empty($transaction->erp_pos_invoice)) {
+            return $this->submitPosInvoice($transaction, $transaction->erp_pos_invoice, null);
+        }
+
+        // Jaring pengaman untuk POST yang hasilnya tidak pernah sampai balik ke sini
+        // (mis. timeout setelah ERP sebenarnya sudah membuat dokumennya): cari dulu
+        // invoice dengan po_no = nomor invoice lokal. Kalau ada, dokumen itu diadopsi
+        // alih-alih membuat yang kedua.
+        $existing = $this->findPosInvoiceByLocalNo($transaction->invoice_no);
+        if ($existing) {
+            Log::warning('ERPNext sync: POS Invoice sudah ada di ERP, tidak dibuat ulang', [
+                'invoice_no' => $transaction->invoice_no,
+                'docname' => $existing,
+            ]);
+
+            return $this->submitPosInvoice($transaction, $existing, null);
+        }
+
         // Auto-push customer ke ERPNext jika belum punya erp_customer_name
         if ($transaction->customer && ! ($transaction->customer->erp_customer_name ?: null)) {
             $this->pushCustomer($transaction->customer);
@@ -198,22 +219,6 @@ class ErpNextService
 
             $data = json_decode($response->getBody()->getContents(), true);
             $docname = $data['data']['name'] ?? null;
-
-            if ($docname) {
-                $this->submitDoc('POS Invoice', $docname);
-            }
-
-            $transaction->update([
-                'erp_pos_invoice' => $docname,
-                'erp_synced_at' => now(),
-                'erp_sync_status' => 'synced',
-                'erp_sync_error' => null,
-            ]);
-
-            $this->logSync('transaction', $transaction->id, $transaction->invoice_no,
-                'success', $payload, $data, $docname);
-
-            return ['success' => true, 'docname' => $docname];
 
         } catch (ConnectException $e) {
             Log::warning("ERPNext auto-sync: network unreachable for {$transaction->invoice_no}");
@@ -233,6 +238,93 @@ class ErpNextService
             Log::error("ERPNext sync failed for {$transaction->invoice_no}: {$errorBody}");
 
             return ['success' => false, 'error' => $errorBody];
+        }
+
+        // Submit dipisahkan dari POST. Nomor dokumennya WAJIB tersimpan lebih dulu:
+        // kalau submitnya gagal dan docname ikut hilang, sync berikutnya akan membuat
+        // POS Invoice kedua sementara yang pertama tertinggal sebagai draft di ERP.
+        return $this->submitPosInvoice($transaction, $docname, $payload, $data);
+    }
+
+    /**
+     * Simpan nomor dokumen lalu selesaikan submit-nya. Dipakai baik oleh POST baru
+     * maupun oleh sync ulang atas dokumen yang sudah ada.
+     */
+    private function submitPosInvoice(Transaction $transaction, ?string $docname, ?array $payload, ?array $data = null): array
+    {
+        if (! $docname) {
+            $error = 'ERP tidak mengembalikan nomor POS Invoice.';
+            $transaction->update(['erp_sync_status' => 'failed', 'erp_sync_error' => $error]);
+            $this->logSync('transaction', $transaction->id, $transaction->invoice_no,
+                'failed', $payload, $data, null, $error);
+
+            return ['success' => false, 'error' => $error];
+        }
+
+        // Disimpan sebelum submit — inilah jejak yang mencegah dokumen ganda.
+        $transaction->update(['erp_pos_invoice' => $docname]);
+
+        try {
+            $this->submitDoc('POS Invoice', $docname);
+        } catch (ConnectException $e) {
+            $error = 'POS Invoice '.$docname.' dibuat tapi submitnya belum terkirim (jaringan). Sync ulang untuk menyelesaikan.';
+            $transaction->update(['erp_sync_status' => 'failed', 'erp_sync_error' => $error]);
+
+            return ['success' => false, 'error' => $error, 'docname' => $docname, 'network_error' => true];
+        } catch (RequestException $e) {
+            $error = 'POS Invoice '.$docname.' dibuat tapi gagal submit: '.$this->extractError($e);
+            $transaction->update(['erp_sync_status' => 'failed', 'erp_sync_error' => $error]);
+            $this->logSync('transaction', $transaction->id, $transaction->invoice_no,
+                'failed', $payload, $data, $docname, $error);
+
+            Log::error("ERPNext submit failed for {$transaction->invoice_no}: {$error}");
+
+            return ['success' => false, 'error' => $error, 'docname' => $docname];
+        }
+
+        $transaction->update([
+            'erp_synced_at' => now(),
+            'erp_sync_status' => 'synced',
+            'erp_sync_error' => null,
+        ]);
+
+        $this->logSync('transaction', $transaction->id, $transaction->invoice_no,
+            'success', $payload, $data, $docname);
+
+        return ['success' => true, 'docname' => $docname];
+    }
+
+    /**
+     * Cari POS Invoice di ERP berdasarkan nomor invoice lokal (dikirim sebagai po_no).
+     * Kegagalan pencarian tidak boleh menghentikan sync — dianggap "tidak ketemu"
+     * supaya perilakunya turun ke keadaan semula, bukan memblokir transaksi.
+     */
+    private function findPosInvoiceByLocalNo(?string $invoiceNo): ?string
+    {
+        if (empty($invoiceNo)) {
+            return null;
+        }
+
+        try {
+            $response = $this->client->get('/api/resource/POS Invoice', [
+                'query' => [
+                    'fields' => json_encode(['name']),
+                    'filters' => json_encode([['po_no', '=', $invoiceNo]]),
+                    'limit_page_length' => 1,
+                ],
+                'timeout' => 10,
+            ]);
+
+            $rows = json_decode($response->getBody()->getContents(), true)['data'] ?? [];
+
+            return $rows[0]['name'] ?? null;
+        } catch (\Exception $e) {
+            Log::warning('ERPNext: gagal memeriksa POS Invoice yang sudah ada', [
+                'invoice_no' => $invoiceNo,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
         }
     }
 
@@ -347,6 +439,11 @@ class ErpNextService
             'apply_discount_on' => 'Net Total',
             'additional_discount_percentage' => $erpDiscPct,
             'discount_amount' => $erpDiscAmt,
+            // Nomor invoice lokal dibawa sebagai po_no supaya satu transaksi POS bisa
+            // dicocokkan balik ke dokumennya di ERP. Dipakai findPosInvoiceByLocalNo()
+            // untuk mengenali invoice yang sudah terlanjur dibuat ketika respons POST-nya
+            // tidak sampai (timeout), sehingga tidak dibuat dua kali.
+            'po_no' => $transaction->invoice_no,
         ];
 
         // Customer spesifik (sudah di-push ke ERPNext) diutamakan.
@@ -550,10 +647,77 @@ class ErpNextService
                 unset($item);
             }
 
+            // Barcode bukan field Item — ia child table 'Item Barcode', jadi tidak ikut
+            // terbawa oleh list API di atas dan harus ditarik terpisah lalu ditempelkan.
+            // Bila pengambilan barcode gagal, key 'barcode' sengaja tidak diisi sama sekali
+            // supaya barcode lokal yang sudah ada tidak ikut terhapus.
+            if (count($items) > 0) {
+                $barcodeMap = $this->fetchItemBarcodesMap(array_column($items, 'name'));
+
+                if ($barcodeMap !== null) {
+                    foreach ($items as &$item) {
+                        $item['barcode'] = $barcodeMap[$item['name']] ?? null;
+                    }
+                    unset($item);
+                }
+            }
+
             return ['success' => true, 'data' => $items];
 
         } catch (\Exception $e) {
             return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    // =========================================================
+    // FETCH BARCODES FROM 'Item Barcode' CHILD TABLE
+    // =========================================================
+    /**
+     * Child doctype tidak bisa di-GET langsung per dokumen, tapi bisa di-query sebagai
+     * tabel dengan menyertakan parent=Item. Satu panggilan untuk semua item jauh lebih
+     * hemat daripada GET /api/resource/Item/{code} per item.
+     *
+     * @return array<string,string>|null item_code => barcode, atau null bila gagal
+     */
+    private function fetchItemBarcodesMap(array $itemCodes): ?array
+    {
+        try {
+            $response = $this->client->get('/api/resource/Item Barcode', [
+                'timeout' => 120,
+                'query' => [
+                    'fields' => json_encode(['parent', 'barcode', 'idx']),
+                    'filters' => json_encode([
+                        ['parenttype', '=', 'Item'],
+                        ['parent', 'in', $itemCodes],
+                    ]),
+                    'parent' => 'Item',
+                    'limit_page_length' => 0,
+                    // Satu item bisa punya beberapa barcode; idx terkecil dianggap utama.
+                    'order_by' => 'idx asc',
+                ],
+            ]);
+
+            $data = json_decode($response->getBody()->getContents(), true);
+
+            $map = [];
+            foreach ($data['data'] ?? [] as $row) {
+                $parent = $row['parent'] ?? null;
+                $barcode = trim((string) ($row['barcode'] ?? ''));
+
+                if (! $parent || $barcode === '' || isset($map[$parent])) {
+                    continue;
+                }
+
+                $map[$parent] = $barcode;
+            }
+
+            return $map;
+
+        } catch (\Exception $e) {
+            // Barcode bersifat pelengkap — kegagalan di sini tidak boleh menggagalkan sync produk.
+            Log::warning('Failed to fetch Item Barcodes: '.$e->getMessage());
+
+            return null;
         }
     }
 
@@ -896,11 +1060,45 @@ class ErpNextService
         }
     }
 
+    /**
+     * Penjaga transfer stok yang sudah punya Stock Entry di ERP. Mengembalikan hasil
+     * siap-pakai bila POST tidak boleh diulang, atau null bila transfer ini memang
+     * belum pernah dikirim.
+     *
+     * Transfer yang punya docname tapi belum 'synced' berarti dokumennya sudah ada di
+     * ERP namun submitnya belum tuntas. POST ulang akan menggandakan mutasi stok, jadi
+     * kasus itu dikembalikan sebagai kegagalan yang harus dibereskan di ERP — bukan
+     * dilaporkan berhasil, karena stoknya memang belum benar-benar berpindah.
+     */
+    private function guardExistingStockEntry(StockTransfer $transfer): ?array
+    {
+        if (empty($transfer->erp_stock_entry)) {
+            return null;
+        }
+
+        if ($transfer->erp_sync_status === 'synced') {
+            return ['success' => true, 'docname' => $transfer->erp_stock_entry];
+        }
+
+        return [
+            'success' => false,
+            'docname' => $transfer->erp_stock_entry,
+            'error' => 'Stock Entry '.$transfer->erp_stock_entry.' sudah dibuat di ERP HPY tapi belum tersubmit. '
+                .'Selesaikan atau batalkan dokumen itu di ERP HPY — mengirim ulang dari sini akan menggandakan mutasi stok.',
+        ];
+    }
+
     // =========================================================
     // CREATE OUTGOING TRANSFER → ERPNext (Material Transfer to In-Transit)
     // =========================================================
     public function createOutgoingTransfer(StockTransfer $transfer): array
     {
+        // Idempoten — Stock Entry yang sudah terbuat tidak dikirim ulang. Tanpa ini,
+        // tombol Retry pada transfer yang sudah tersync memotong stok dua kali di ERP.
+        if ($guard = $this->guardExistingStockEntry($transfer)) {
+            return $guard;
+        }
+
         $payload = [
             'doctype' => 'Stock Entry',
             'stock_entry_type' => 'Material Transfer',
@@ -927,7 +1125,11 @@ class ErpNextService
             $data = json_decode($response->getBody()->getContents(), true);
             $docname = $data['data']['name'] ?? null;
 
+            // Nomor dokumen disimpan SEBELUM submit. Kalau submitnya gagal dan docname
+            // ikut hilang, retry akan membuat Stock Entry kedua dan stok ERP terpotong
+            // dua kali sementara yang pertama tertinggal sebagai draft.
             if ($docname) {
+                $transfer->update(['erp_stock_entry' => $docname]);
                 $this->submitDoc('Stock Entry', $docname);
             }
 
@@ -972,6 +1174,11 @@ class ErpNextService
     // =========================================================
     public function createIncomingReceipt(StockTransfer $transfer): array
     {
+        // Idempoten — lihat catatan di createOutgoingTransfer().
+        if ($guard = $this->guardExistingStockEntry($transfer)) {
+            return $guard;
+        }
+
         $payload = [
             'doctype' => 'Stock Entry',
             'stock_entry_type' => 'Material Transfer',
@@ -998,7 +1205,9 @@ class ErpNextService
             $data = json_decode($response->getBody()->getContents(), true);
             $docname = $data['data']['name'] ?? null;
 
+            // Docname disimpan sebelum submit — lihat catatan di createOutgoingTransfer().
             if ($docname) {
+                $transfer->update(['erp_stock_entry' => $docname]);
                 $this->submitDoc('Stock Entry', $docname);
             }
 
@@ -1853,6 +2062,13 @@ class ErpNextService
     {
         if (empty($this->baseUrl)) {
             return ['success' => false, 'error' => 'URL ERP HPY belum dikonfigurasi.'];
+        }
+
+        // Idempoten — satu pembayaran hanya boleh punya satu Payment Entry. Tanpa ini,
+        // pembayaran berstatus 'failed' yang sebetulnya sudah terbuat di ERP akan
+        // dikirim ulang oleh DeliveryOrderController::confirm() (filternya != 'synced').
+        if (! empty($payment->erp_payment_entry)) {
+            return ['success' => true, 'docname' => $payment->erp_payment_entry];
         }
 
         $order = $payment->order;
@@ -3061,6 +3277,11 @@ class ErpNextService
             return ['success' => false, 'error' => 'URL ERP HPY belum dikonfigurasi.'];
         }
 
+        // Idempoten — satu permintaan FG hanya boleh punya satu Material Request.
+        if (! empty($stockRequest->erp_material_request)) {
+            return ['success' => true, 'docname' => $stockRequest->erp_material_request];
+        }
+
         $company = Setting::get('erpnext_company', env('ERPNEXT_COMPANY', ''));
         $namingSeries = Setting::get('erp_mr_naming_series', 'MAT-MR-.YYYY.-');
         $defaultWh = Warehouse::getDefault()?->name ?? '';
@@ -3173,6 +3394,22 @@ class ErpNextService
     {
         if (empty($this->baseUrl)) {
             return ['success' => false, 'error' => 'URL ERP HPY belum dikonfigurasi.'];
+        }
+
+        // Idempoten — Stock Entry repack yang sudah terbuat tidak dikirim ulang, kalau
+        // tidak bahan bakunya terpotong dua kali di ERP. Dokumen yang tertinggal sebagai
+        // draft (submit gagal) harus dibereskan di ERP, bukan dibuat ulang dari sini.
+        if (! empty($slice->erp_stock_entry)) {
+            if ($slice->erp_sync_status === 'synced') {
+                return ['success' => true, 'docname' => $slice->erp_stock_entry];
+            }
+
+            return [
+                'success' => false,
+                'docname' => $slice->erp_stock_entry,
+                'error' => 'Stock Entry '.$slice->erp_stock_entry.' sudah dibuat di ERP HPY tapi belum tersubmit. '
+                    .'Selesaikan atau batalkan dokumen itu di ERP HPY — mengirim ulang dari sini akan menggandakan mutasi stok.',
+            ];
         }
 
         $company = Setting::get('erpnext_company', env('ERPNEXT_COMPANY', ''));

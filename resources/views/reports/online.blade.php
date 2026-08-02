@@ -16,12 +16,13 @@
             <div class="form-group" style="margin-bottom:0">
                 <label class="form-label">Dari Tanggal</label>
                 <input type="date" id="dateFrom" class="form-control"
-                    value="{{ now()->startOfMonth()->format('Y-m-d') }}">
+                    value="{{ $dateLocked ? today()->format('Y-m-d') : now()->startOfMonth()->format('Y-m-d') }}"
+                    @disabled($dateLocked)>
             </div>
             <div class="form-group" style="margin-bottom:0">
                 <label class="form-label">Sampai Tanggal</label>
                 <input type="date" id="dateTo" class="form-control"
-                    value="{{ now()->format('Y-m-d') }}">
+                    value="{{ now()->format('Y-m-d') }}" @disabled($dateLocked)>
             </div>
             <div class="form-group" style="margin-bottom:0">
                 <label class="form-label">POS Profile</label>
@@ -34,6 +35,11 @@
             </button>
         </div>
 
+        @if($dateLocked)
+        <p style="margin:12px 0 0;font-size:12px;color:var(--text3)">
+            <i class="fas fa-lock"></i> Laporan dikunci ke tanggal hari ini ({{ today()->format('d/m/Y') }}).
+        </p>
+        @else
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
             <button onclick="setRange('today')" class="btn btn-ghost btn-sm">Hari Ini</button>
             <button onclick="setRange('yesterday')" class="btn btn-ghost btn-sm">Kemarin</button>
@@ -41,6 +47,7 @@
             <button onclick="setRange('month')" class="btn btn-ghost btn-sm">Bulan Ini</button>
             <button onclick="setRange('last_month')" class="btn btn-ghost btn-sm">Bulan Lalu</button>
         </div>
+        @endif
     </div>
 </div>
 

@@ -538,6 +538,15 @@ async function syncAll() {
         headers: {'X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'}
     });
     const data = await resp.json();
+
+    // Sync lain sedang berjalan (tab/admin lain) — jangan tampilkan sebagai hasil.
+    if (data.locked) {
+        toast(data.message, 'error');
+        btn.innerHTML = '<i class="fas fa-sync-alt"></i> Coba Lagi';
+        btn.disabled = false;
+        return;
+    }
+
     showSyncResult(data);
     toast(`Sync selesai: ${data.success} berhasil, ${data.failed} gagal`);
     setTimeout(() => location.reload(), 1500);

@@ -1375,6 +1375,16 @@ async function addNewCustomer() {
 // ============================================================
 // CHECKOUT
 // ============================================================
+// Kunci idempoten: satu nilai per isi keranjang, dipakai ulang oleh tiap percobaan
+// kirim, baru diganti setelah checkout berhasil. Mencegah klik dobel / kirim ulang
+// menjadi dua transaksi. Lihat PosController::checkout().
+let checkoutKey = null;
+
+function newCheckoutKey() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'ck-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
+
 async function processCheckout() {
     if (cart.length === 0) return;
     if (selectedOrderType === 'delivery' && !selectedDeliveryPlatform) { toast('Pilih platform delivery (GoFood/GrabFood/ShopeeFood) terlebih dahulu!', 'err'); return; }
@@ -1392,7 +1402,10 @@ async function processCheckout() {
     const discPct = parseFloat(document.getElementById('discountPct').value) || 0;
     const tableNumber = document.getElementById('tableNumber').value.trim();
 
+    if (!checkoutKey) checkoutKey = newCheckoutKey();
+
     const payload = {
+        idempotency_key: checkoutKey,
         items: cart.map(i => ({ product_id: i.id, quantity: i.qty, price: i.price, discount_amount: i.discount, note: i.note || '' })),
         customer_id: selectedCustomer?.id || null,
         payment_method: selectedPayment,
@@ -1414,9 +1427,12 @@ async function processCheckout() {
         });
         const data = await resp.json();
         if (data.success) {
+            checkoutKey = null;
             lastReceipt = data.transaction;
             showReceipt(data.transaction);
-            toast('Pesanan berhasil: ' + data.invoice_no, 'ok');
+            toast(data.duplicate
+                ? 'Pesanan ini sudah tersimpan: ' + data.invoice_no
+                : 'Pesanan berhasil: ' + data.invoice_no, 'ok');
         } else {
             toast('Gagal: ' + (data.error || 'Unknown error'), 'err');
         }

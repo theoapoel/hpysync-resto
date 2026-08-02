@@ -26,6 +26,26 @@ class Setting extends Model
         return static::get('report_scope', 'all') === 'user';
     }
 
+    /**
+     * Batas rentang tanggal laporan penjualan & pembayaran.
+     * 'all' (default) = bebas, 'today' = hanya hari ini.
+     */
+    public static function reportTodayOnly(): bool
+    {
+        return static::get('report_date_limit', 'all') === 'today';
+    }
+
+    /**
+     * Apakah pengguna yang sedang login terkunci ke tanggal hari ini.
+     * Admin dikecualikan agar tetap bisa menelusuri data lama.
+     */
+    public static function reportDateLocked(): bool
+    {
+        $user = auth()->user();
+
+        return static::reportTodayOnly() && $user && ! $user->isAdmin();
+    }
+
     public static function set(string $key, $value, string $group = 'general'): void
     {
         static::updateOrCreate(['key' => $key], ['value' => $value, 'group' => $group]);

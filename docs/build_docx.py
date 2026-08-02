@@ -61,19 +61,35 @@ SECTIONS = [
      ["Pesanan pengiriman ke pelanggan. Nomor DO-YYYYMMDD-XXXX. Alur: draft → confirmed."],
      ["Status dapur: pending → preparing → ready.",
       "Bisa catat pembayaran, atur jadwal produksi, cetak slip Gudang/QC & Invoice.",
-      "Sync Sales Order ke ERP HPY."]),
+      "Sync Sales Order ke ERP HPY.",
+      "Sales Invoice terbit OTOMATIS begitu order punya pembayaran (lewat confirm bila "
+      "sudah ada bayar, atau saat pembayaran pertama masuk). Order tanpa bayar sengaja "
+      "tidak ditagihkan supaya piutang tak menumpuk.",
+      "Invoice pakai update_stock=0 — stok tetap dipotong Delivery Note saat kirim, jadi "
+      "satu pengiriman tidak memotong stok dua kali; order yang sama tak bisa ditagih ganda.",
+      "Batalkan order membatalkan Payment Entry lalu Sales Invoice di ERP. Bila ERP gagal "
+      "dihubungi, order lokal TIDAK jadi dibatalkan agar kedua sisi tidak berbeda."]),
 
     ("11. Delivery Notes", "11-deliverynotes.png",
-     ["Bekerja pada pengiriman (shipment). Tandai Delivered dan Sync Delivery Note ke ERP HPY."], []),
+     ["Bekerja pada pengiriman (shipment). Tandai Delivered dan Sync Delivery Note ke ERP HPY."],
+     ["Sync mencoba SUBMIT Delivery Note, bukan sekadar membuat draft.",
+      "Bila submit gagal (paling sering stok di ERP kurang), DN tetap tersimpan sebagai "
+      "draft, nomornya dicatat, dan statusnya (Submitted/Draft) diinfokan. Sync ulang "
+      "idempoten: menyelesaikan submit DN yang sudah ada, bukan membuat DN baru.",
+      "Shipment lama tanpa SKU tetap dikirim dengan item_code benar (dicari lewat nama)."]),
 
     ("12. Permintaan FG", "12-stockrequests.png",
      ["Permintaan barang jadi ke dapur/pusat. Nomor FG-YYYYMMDD-XXXX. Alur: draft → submitted."],
      ["Status dapur: requested → preparing → done.",
-      "Sync ke ERP HPY sebagai Material Request."]),
+      "Sync ke ERP HPY sebagai Material Request.",
+      "Tanggal butuh (Reqd by Date) yang sudah lewat dimajukan otomatis ke hari ini supaya "
+      "ERP tidak menolak; tanggal butuh asli dicatat di remarks."]),
 
     ("13. Pulling Order", "13-pullingorder.png",
      ["Layar gabungan untuk mengelola pembayaran dan jadwal produksi lintas Delivery Order "
-      "dan Permintaan FG dalam satu tempat."], []),
+      "dan Permintaan FG dalam satu tempat."],
+     ["Pembayaran DO di sini menerbitkan Sales Invoice dulu (idempoten) lalu Payment Entry, "
+      "sehingga menutup piutang, bukan tercatat sebagai uang muka."]),
 
     ("14. Rekap Order", "14-rekaporder.png",
      ["Laporan agregat kebutuhan produksi per tanggal: gabungan Delivery Order (confirmed, "
@@ -96,25 +112,34 @@ SECTIONS = [
     ("18. Laporan Pembayaran (MOP)", "18-mopreport.png",
      ["Matriks tanggal × metode pembayaran, ditarik dari ERP HPY."], []),
 
-    ("19. Kupon", "19-coupons.png",
+    ("19. Laporan DO", "19-doreport.png",
+     ["Penjualan Delivery Order dari data lokal (ringkasan total/dibayar/outstanding + "
+      "tabel per order). Penjualan DO tidak muncul di Laporan Online/Pembayaran karena "
+      "keduanya membaca POS Invoice, sedangkan DO terbit sebagai Sales Invoice biasa."],
+     ["Listing tidak memanggil ERP agar cepat.",
+      "Tombol Cek HPY per order menarik langsung dari ERP HPY: Sales Invoice "
+      "(status/outstanding/per_billed), Delivery Note per shipment, dan Payment Entry per "
+      "pembayaran. Diatur via hak akses do_report."]),
+
+    ("20. Kupon", "19-coupons.png",
      ["Daftar kupon yang ditarik dari ERP HPY, diterapkan saat checkout di POS."], []),
 
-    ("20. Manajemen User", "20-users.png",
+    ("21. Manajemen User", "20-users.png",
      ["Tambah/ubah user, aktif/nonaktifkan, atur peran dan PIN offline."], []),
 
-    ("21. Manajemen Role", "21-roles.png",
+    ("22. Manajemen Role", "21-roles.png",
      ["Kelola peran (role) beserta warna penandanya."], []),
 
-    ("22. Hak Akses", "22-permissions.png",
+    ("23. Hak Akses", "22-permissions.png",
      ["Matriks izin menu per peran. Nyalakan/matikan toggle tiap menu lalu Simpan. "
       "Admin selalu punya akses penuh."],
      ["Modul admin sensitif (Kupon, User, Role, Hak Akses, Warehouse, Pengaturan, Backup, "
       "Update, Factory Reset) default MATI untuk non-admin — nyalakan bila ingin didelegasikan."]),
 
-    ("23. Warehouse", "23-warehouses.png",
+    ("24. Warehouse", "23-warehouses.png",
      ["Pemetaan gudang ke ERP HPY. Set gudang default (POS) dan transit."], []),
 
-    ("24. Pengaturan Toko", "24-settings.png",
+    ("25. Pengaturan Toko", "24-settings.png",
      ["Nama toko, logo, layout POS, pajak/service charge, dan kredensial ERP HPY. "
       "Menu sistem lain: Restore Backup, Update Sistem, Factory Reset (hati-hati, destruktif)."], []),
 ]
