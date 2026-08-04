@@ -173,31 +173,30 @@
 
                 <div class="form-group">
                     <label class="form-label">Rentang Tanggal Laporan</label>
-                    <div style="display:flex;gap:12px;margin-top:4px">
-                        <label style="flex:1;cursor:pointer">
-                            <input type="radio" name="report_date_limit" value="all"
-                                {{ ($settings['report_date_limit'] ?: 'all') === 'all' ? 'checked' : '' }}
-                                style="display:none" class="report-datelimit-radio">
-                            <div class="report-datelimit-option" style="border:2px solid var(--border);border-radius:10px;padding:14px;text-align:center;transition:all .2s">
-                                <div style="font-size:28px;margin-bottom:6px">🗓️</div>
-                                <div style="font-size:13px;font-weight:600">Bebas</div>
-                                <div style="font-size:11px;color:var(--text3);margin-top:2px">Semua role bisa memilih rentang tanggal</div>
+                    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+                        <div style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:10px;padding:12px 14px;opacity:.7">
+                            <div style="font-size:20px">🛡️</div>
+                            <div style="flex:1">
+                                <div style="font-size:13px;font-weight:600">Admin</div>
+                                <div style="font-size:11px;color:var(--text3)">Selalu bebas memilih rentang tanggal</div>
                             </div>
-                        </label>
-                        <label style="flex:1;cursor:pointer">
-                            <input type="radio" name="report_date_limit" value="today"
-                                {{ ($settings['report_date_limit'] ?: 'all') === 'today' ? 'checked' : '' }}
-                                style="display:none" class="report-datelimit-radio">
-                            <div class="report-datelimit-option" style="border:2px solid var(--border);border-radius:10px;padding:14px;text-align:center;transition:all .2s">
-                                <div style="font-size:28px;margin-bottom:6px">📅</div>
-                                <div style="font-size:13px;font-weight:600">Hari Ini Saja</div>
-                                <div style="font-size:11px;color:var(--text3);margin-top:2px">Laporan terkunci ke tanggal hari ini</div>
-                            </div>
-                        </label>
+                            <span style="font-size:11px;font-weight:600;color:var(--text3)">Bebas</span>
+                        </div>
+                        @foreach($reportRoles as $role)
+                            @php $locked = in_array($role->name, $lockedReportRoles, true); @endphp
+                            <label style="display:flex;align-items:center;gap:10px;border:2px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer">
+                                <input type="checkbox" name="report_date_limit_roles[]" value="{{ $role->name }}"
+                                    {{ $locked ? 'checked' : '' }} style="width:16px;height:16px;cursor:pointer">
+                                <div style="flex:1">
+                                    <div style="font-size:13px;font-weight:600">{{ $role->label ?: $role->name }}</div>
+                                    <div style="font-size:11px;color:var(--text3)">Centang = laporan terkunci ke hari ini</div>
+                                </div>
+                            </label>
+                        @endforeach
                     </div>
                     <p style="font-size:12px;color:var(--text3);margin-top:6px">
                         Berlaku untuk Riwayat Transaksi, Laporan Online, Rekap Metode Bayar, dan Laporan Delivery Order.
-                        Admin selalu bebas memilih tanggal; kasir, manager, dan role lain terkunci ke hari ini.
+                        Role yang tidak dicentang bebas memilih rentang tanggal.
                     </p>
                 </div>
 
@@ -419,20 +418,6 @@ document.querySelectorAll('.report-scope-radio').forEach(r => {
 });
 updateReportScopeUI();
 
-// Radio button visual untuk batas rentang tanggal laporan
-function updateReportDateLimitUI() {
-    document.querySelectorAll('.report-datelimit-radio').forEach(radio => {
-        const box = radio.nextElementSibling;
-        box.style.borderColor = radio.checked ? 'var(--blue)' : 'var(--border)';
-        box.style.background  = radio.checked ? 'var(--blue-light, #E8F0FE)' : '';
-        box.style.color       = radio.checked ? 'var(--blue)' : '';
-    });
-}
-document.querySelectorAll('.report-datelimit-radio').forEach(r => {
-    r.addEventListener('change', updateReportDateLimitUI);
-});
-updateReportDateLimitUI();
-
 // Layout Kasir selector
 function selectPosLayout(el) {
     document.getElementById('posLayoutInput').value = el.dataset.value;
@@ -593,7 +578,11 @@ async function saveSettings() {
     const form   = document.getElementById('storeSettingsForm');
     const data   = {};
 
-    new FormData(form).forEach((v, k) => data[k] = v);
+    new FormData(form).forEach((v, k) => { if (!k.endsWith('[]')) data[k] = v; });
+
+    // Checkbox multi-nilai: kirim sebagai array (kosong = tidak ada role terkunci)
+    data['report_date_limit_roles'] = [...form.querySelectorAll('input[name="report_date_limit_roles[]"]:checked')]
+        .map(c => c.value);
 
     btn.innerHTML = '<span class="spinner"></span> Menyimpan...';
     btn.disabled  = true;

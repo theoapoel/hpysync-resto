@@ -11,7 +11,7 @@ class SettingsController extends Controller
     private const STORE_KEYS = [
         'store_name', 'store_tagline', 'store_address',
         'store_phone', 'store_email', 'receipt_footer', 'pos_class',
-        'pos_layout', 'pos_product_display', 'report_scope', 'report_date_limit',
+        'pos_layout', 'pos_product_display', 'report_scope',
         'service_charge_enabled', 'service_charge_pct',
         'pb1_enabled', 'pb1_pct',
         'thermal_printer_device', 'thermal_printer_name',
@@ -45,7 +45,14 @@ class SettingsController extends Controller
         }
         $itemGroups = Category::where('is_active', true)->orderBy('name')->get(['id', 'name']);
 
-        return view('settings.index', compact('settings', 'itemGroups'));
+        // Rentang tanggal laporan: dikunci per role (admin selalu bebas).
+        $reportRoles       = \App\Models\Role::configurable();
+        $lockedReportRoles = Setting::reportDateLimitedRoles();
+        if (in_array('*', $lockedReportRoles, true)) {
+            $lockedReportRoles = $reportRoles->pluck('name')->all();
+        }
+
+        return view('settings.index', compact('settings', 'itemGroups', 'reportRoles', 'lockedReportRoles'));
     }
 
     public function uploadLogo(Request $request)
@@ -104,7 +111,8 @@ class SettingsController extends Controller
             'pos_layout'             => 'nullable|in:index,quick,express',
             'pos_product_display'    => 'nullable|in:image,text',
             'report_scope'           => 'nullable|in:all,user',
-            'report_date_limit'      => 'nullable|in:all,today',
+            'report_date_limit_roles'   => 'nullable|array',
+            'report_date_limit_roles.*' => 'string|max:50',
             'service_charge_enabled' => 'nullable|in:0,1',
             'service_charge_pct'     => 'nullable|numeric|min:0|max:100',
             'pb1_enabled'            => 'nullable|in:0,1',
@@ -121,6 +129,14 @@ class SettingsController extends Controller
         foreach ($data as $key => $value) {
             Setting::set($key, $value ?? '', 'store');
         }
+
+        // Rentang tanggal laporan: daftar role yang terkunci ke hari ini.
+        // Checkbox yang tidak dicentang tidak dikirim → tidak ada role terkunci.
+        $lockedRoles = array_values(array_unique(array_filter(
+            (array) $request->input('report_date_limit_roles', []),
+            fn ($r) => is_string($r) && $r !== '' && $r !== 'admin'
+        )));
+        Setting::set('report_date_limit_roles', json_encode($lockedRoles), 'store');
 
         // Item Group filters arrive as CSV of category IDs (e.g. "1,3,5"); store as JSON array.
         foreach (self::ITEM_GROUP_KEYS as $key) {

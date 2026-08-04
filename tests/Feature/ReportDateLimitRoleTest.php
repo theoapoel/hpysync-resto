@@ -12,11 +12,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Pembatasan rentang tanggal laporan ke hari ini (Pengaturan Toko → report_date_limit).
- * Yang diuji penegakannya di server: filter tanggal dari request harus diabaikan,
- * bukan sekadar input di UI yang di-disable.
+ * Pembatasan rentang tanggal laporan ke hari ini, dikonfigurasi per role
+ * (Pengaturan Toko → report_date_limit_roles). Yang diuji penegakannya di server:
+ * filter tanggal dari request harus diabaikan, bukan sekadar input UI yang di-disable.
  */
-class ReportDateLimitTest extends TestCase
+class ReportDateLimitRoleTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -75,9 +75,14 @@ class ReportDateLimitTest extends TestCase
         $this->transaction($user, now()->subDays(5)->toDateTimeString(), 'INV-LAMA');
     }
 
+    private function lockRoles(array $roles): void
+    {
+        Setting::set('report_date_limit_roles', json_encode($roles));
+    }
+
     public function test_kasir_terkunci_ke_hari_ini_meski_memaksa_lewat_query_string(): void
     {
-        Setting::set('report_date_limit', 'today');
+        $this->lockRoles(['kasir']);
         $kasir = $this->user('kasir');
         $this->seedTwoDays($kasir);
 
@@ -88,9 +93,9 @@ class ReportDateLimitTest extends TestCase
         $response->assertDontSee('INV-LAMA');
     }
 
-    public function test_manager_juga_terkunci(): void
+    public function test_manager_terkunci_bila_rolenya_dicentang(): void
     {
-        Setting::set('report_date_limit', 'today');
+        $this->lockRoles(['kasir', 'manager']);
         $manager = $this->user('manager');
         $this->seedTwoDays($manager);
 
@@ -100,9 +105,21 @@ class ReportDateLimitTest extends TestCase
         $response->assertDontSee('INV-LAMA');
     }
 
-    public function test_admin_dikecualikan(): void
+    public function test_manager_bebas_bila_hanya_kasir_yang_dikunci(): void
     {
-        Setting::set('report_date_limit', 'today');
+        $this->lockRoles(['kasir']);
+        $manager = $this->user('manager');
+        $this->seedTwoDays($manager);
+
+        $response = $this->actingAs($manager)->get('/transactions?date_from=2000-01-01&date_to=2100-01-01');
+
+        $response->assertOk();
+        $response->assertSee('INV-LAMA');
+    }
+
+    public function test_admin_dikecualikan_meski_dicentang(): void
+    {
+        $this->lockRoles(['admin', 'manager', 'kasir']);
         $admin = $this->user('admin');
         $this->seedTwoDays($admin);
 
@@ -114,7 +131,7 @@ class ReportDateLimitTest extends TestCase
 
     public function test_default_tidak_membatasi_siapa_pun(): void
     {
-        // report_date_limit sengaja tidak diset — perilaku bawaan harus tetap bebas.
+        // Tidak ada pengaturan tersimpan — perilaku bawaan harus tetap bebas.
         $kasir = $this->user('kasir');
         $this->seedTwoDays($kasir);
 
@@ -122,5 +139,18 @@ class ReportDateLimitTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('INV-LAMA');
+    }
+
+    public function test_pengaturan_lama_today_masih_mengunci_semua_non_admin(): void
+    {
+        // Instalasi lama: hanya report_date_limit yang tersimpan, belum per-role.
+        Setting::set('report_date_limit', 'today');
+        $kasir = $this->user('kasir');
+        $this->seedTwoDays($kasir);
+
+        $response = $this->actingAs($kasir)->get('/transactions?date_from=2000-01-01&date_to=2100-01-01');
+
+        $response->assertOk();
+        $response->assertDontSee('INV-LAMA');
     }
 }

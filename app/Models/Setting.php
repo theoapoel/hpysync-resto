@@ -27,12 +27,23 @@ class Setting extends Model
     }
 
     /**
-     * Batas rentang tanggal laporan penjualan & pembayaran.
-     * 'all' (default) = bebas, 'today' = hanya hari ini.
+     * Role yang laporannya terkunci ke tanggal hari ini.
+     * Disimpan sebagai JSON array nama role; admin tidak pernah ikut terkunci.
+     *
+     * Bila key baru belum pernah disimpan, pengaturan lama (report_date_limit =
+     * 'today' untuk semua role non-admin) dipakai sebagai fallback lewat '*'.
      */
-    public static function reportTodayOnly(): bool
+    public static function reportDateLimitedRoles(): array
     {
-        return static::get('report_date_limit', 'all') === 'today';
+        $raw = static::get('report_date_limit_roles', '');
+
+        if ($raw === '' || $raw === null) {
+            return static::get('report_date_limit', 'all') === 'today' ? ['*'] : [];
+        }
+
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? array_values(array_diff($decoded, ['admin'])) : [];
     }
 
     /**
@@ -43,7 +54,13 @@ class Setting extends Model
     {
         $user = auth()->user();
 
-        return static::reportTodayOnly() && $user && ! $user->isAdmin();
+        if (! $user || $user->isAdmin()) {
+            return false;
+        }
+
+        $roles = static::reportDateLimitedRoles();
+
+        return in_array('*', $roles, true) || in_array($user->role, $roles, true);
     }
 
     public static function set(string $key, $value, string $group = 'general'): void
