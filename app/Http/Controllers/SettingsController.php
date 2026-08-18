@@ -15,6 +15,7 @@ class SettingsController extends Controller
         'service_charge_enabled', 'service_charge_pct',
         'pb1_enabled', 'pb1_pct',
         'thermal_printer_device', 'thermal_printer_name',
+        'mobile_api_key', 'mobile_api_secret',
     ];
 
     private const LOGO_DIR = 'images';
@@ -119,6 +120,8 @@ class SettingsController extends Controller
             'pb1_pct'                => 'nullable|numeric|min:0|max:100',
             'thermal_printer_device' => 'nullable|string|max:255',
             'thermal_printer_name'   => 'nullable|string|max:255',
+            'mobile_api_key'         => 'nullable|string|max:64',
+            'mobile_api_secret'      => 'nullable|string|max:64',
         ]);
 
         // Checkboxes: jika tidak dicentang, request tidak mengirim nilai → default '0'

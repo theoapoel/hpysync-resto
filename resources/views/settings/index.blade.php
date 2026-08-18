@@ -117,6 +117,32 @@
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label">📱 API Aplikasi Tablet (Kitchen Monitor)</label>
+                    <p style="font-size:12px;color:var(--text3);margin:2px 0 8px;">
+                        Kredensial untuk aplikasi tablet dapur. Isi Server URL di aplikasi tablet dengan alamat
+                        server ini, lalu masukkan API Key &amp; Secret di bawah. Kosongkan keduanya untuk menonaktifkan API.
+                    </p>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+                        <div style="flex:1;min-width:200px">
+                            <label class="form-label" style="font-size:12px">API Key</label>
+                            <input type="text" name="mobile_api_key" id="mobileApiKey" class="form-control"
+                                value="{{ $settings['mobile_api_key'] }}" maxlength="64" autocomplete="off">
+                        </div>
+                        <div style="flex:1;min-width:200px">
+                            <label class="form-label" style="font-size:12px">API Secret</label>
+                            <input type="text" name="mobile_api_secret" id="mobileApiSecret" class="form-control"
+                                value="{{ $settings['mobile_api_secret'] }}" maxlength="64" autocomplete="off">
+                        </div>
+                        <button type="button" class="btn btn-secondary" onclick="generateMobileApiCreds()"
+                            style="white-space:nowrap"><i class="fas fa-dice"></i> Generate</button>
+                    </div>
+                    <p style="font-size:12px;color:var(--text3);margin-top:4px;">
+                        Aplikasi tablet mengirim header <code>X-API-KEY</code> dan <code>X-API-SECRET</code> pada setiap request.
+                        Jangan lupa klik <strong>Simpan</strong> setelah generate.
+                    </p>
+                </div>
+
+                <div class="form-group">
                     <label class="form-label">Tampilan Produk di Kasir</label>
                     <div style="display:flex;gap:12px;margin-top:4px">
                         <label style="flex:1;cursor:pointer">
@@ -383,6 +409,17 @@
 @endsection
 
 @push('scripts')
+<script>
+function generateMobileApiCreds() {
+    const rand = (len) => {
+        const bytes = new Uint8Array(len);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    };
+    document.getElementById('mobileApiKey').value    = rand(12);  // 24 hex chars
+    document.getElementById('mobileApiSecret').value = rand(20);  // 40 hex chars
+}
+</script>
 <script>
 function toggleChargeInput(wrapperId, enabled) {
     const input = document.querySelector('#' + wrapperId + ' input[type="number"]');
