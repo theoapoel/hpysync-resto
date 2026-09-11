@@ -9,6 +9,7 @@ use App\Models\Warehouse;
 use App\Services\ErpNextService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class SliceController extends Controller
 {
@@ -31,7 +32,27 @@ class SliceController extends Controller
 
         $slices = $query->paginate(20)->withQueryString();
 
-        return view('slices.index', compact('slices'));
+        return Inertia::render('Slices/Index', [
+            'slices' => [
+                'data' => collect($slices->items())->map(fn (Slice $s) => [
+                    'id' => $s->id,
+                    'slice_no' => $s->slice_no,
+                    'creator_name' => $s->creator->name ?? '—',
+                    'created_at' => $s->created_at->isoFormat('D MMM Y HH:mm'),
+                    'issues_count' => $s->issues_count,
+                    'receipts_count' => $s->receipts_count,
+                    'status' => $s->status,
+                    'status_label' => $s->status_label,
+                    'erp_stock_entry' => $s->erp_stock_entry,
+                    'erp_sync_status' => $s->erp_sync_status,
+                    'show_url' => route('slices.show', $s),
+                ]),
+                'links' => $slices->linkCollection()->toArray(),
+            ],
+            'filters' => $request->only(['status', 'date_from', 'date_to', 'search']),
+            'indexUrl' => route('slices.index'),
+            'createUrl' => route('slices.create'),
+        ]);
     }
 
     public function create()
@@ -42,7 +63,13 @@ class SliceController extends Controller
         $warehouses = Warehouse::activeList();
         $defaultWarehouse = Warehouse::getDefault()?->name;
 
-        return view('slices.create', compact('products', 'warehouses', 'defaultWarehouse'));
+        return Inertia::render('Slices/Create', [
+            'products' => $products,
+            'warehouses' => $warehouses->map(fn ($w) => ['name' => $w->name, 'label' => $w->display_name]),
+            'defaultWarehouse' => $defaultWarehouse,
+            'indexUrl' => route('slices.index'),
+            'storeUrl' => route('slices.store'),
+        ]);
     }
 
     public function store(Request $request)
@@ -102,7 +129,32 @@ class SliceController extends Controller
     {
         $slice->load('creator', 'issues', 'receipts');
 
-        return view('slices.show', ['slice' => $slice]);
+        $line = fn ($l) => [
+            'item_name' => $l->item_name, 'item_code' => $l->item_code,
+            'qty' => $l->qty, 'uom' => $l->uom,
+            'warehouse' => $l->warehouse, 'notes' => $l->notes,
+        ];
+
+        return Inertia::render('Slices/Show', [
+            'slice' => [
+                'id' => $slice->id,
+                'slice_no' => $slice->slice_no,
+                'creator_name' => $slice->creator->name ?? '—',
+                'created_at' => $slice->created_at->isoFormat('D MMM Y, HH:mm'),
+                'status' => $slice->status,
+                'status_label' => $slice->status_label,
+                'notes' => $slice->notes,
+                'erp_stock_entry' => $slice->erp_stock_entry,
+                'erp_sync_status' => $slice->erp_sync_status,
+                'erp_sync_error' => $slice->erp_sync_error,
+                'issues' => $slice->issues->map($line),
+                'receipts' => $slice->receipts->map($line),
+            ],
+            'indexUrl' => route('slices.index'),
+            'submitUrl' => route('slices.submit', $slice),
+            'cancelUrl' => route('slices.cancel', $slice),
+            'syncUrl' => route('slices.sync-erp', $slice),
+        ]);
     }
 
     public function submit(Slice $slice)
