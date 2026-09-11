@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 use App\Models\{Transaction, Product, Customer, Category};
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class DashboardController extends Controller {
     public function index() {
@@ -24,6 +25,23 @@ class DashboardController extends Controller {
             ->where('created_at','>=',now()->subDays(7))
             ->selectRaw('DATE(created_at) as date, SUM(total) as total, COUNT(*) as count')
             ->groupBy('date')->orderBy('date')->get();
-        return view('dashboard', compact('stats','recentTx','topProducts','salesChart'));
+        return Inertia::render('Dashboard', [
+            'stats'        => $stats,
+            'recentTx'     => $recentTx->map(fn ($tx) => [
+                'id'              => $tx->id,
+                'invoice_no'      => $tx->invoice_no,
+                'user_name'       => $tx->user?->name,
+                'customer_name'   => $tx->customer?->name,
+                'total'           => $tx->total,
+                'payment_method'  => $tx->payment_method,
+                'erp_sync_status' => $tx->erp_sync_status,
+                'created_at'      => $tx->created_at->diffForHumans(),
+                'show_url'        => route('transactions.show', $tx),
+            ]),
+            'topProducts'  => $topProducts,
+            'salesChart'   => $salesChart,
+            'posUrl'       => route('pos.index'),
+            'transactionsUrl' => route('transactions.index'),
+        ]);
     }
 }
