@@ -2,13 +2,35 @@
 namespace App\Http\Controllers;
 use App\Models\Customer;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class CustomerController extends Controller {
     public function index(Request $request) {
         $query = Customer::query();
         if ($request->search) $query->search($request->search);
-        $customers = $query->latest()->paginate(20);
-        return view('customers.index', compact('customers'));
+        $customers = $query->latest()->paginate(20)->withQueryString();
+
+        return Inertia::render('Customers/Index', [
+            'customers' => [
+                'data' => collect($customers->items())->map(fn (Customer $c) => [
+                    'id'             => $c->id,
+                    'code'           => $c->code,
+                    'name'           => $c->name,
+                    'phone'          => $c->phone,
+                    'email'          => $c->email,
+                    'total_purchase' => $c->total_purchase,
+                    'erp_synced'     => (bool) $c->erp_customer_name,
+                    'push_url'       => url('sync/push-customer/'.$c->id),
+                ]),
+                'links' => $customers->linkCollection()->toArray(),
+                'from'  => $customers->firstItem(),
+                'to'    => $customers->lastItem(),
+                'total' => $customers->total(),
+            ],
+            'filters'  => $request->only(['search']),
+            'indexUrl' => route('customers.index'),
+            'storeUrl' => route('customers.store'),
+        ]);
     }
 
     public function store(Request $request) {

@@ -7,12 +7,12 @@ Checklist konversi halaman dari Blade ke Inertia.js + Vue 3 + motion-v, dari yan
 - [x] Dashboard
 - [x] Transaksi — index
 - [x] Transaksi — detail
+- [x] Produk — index
+- [x] Produk — form (create/edit)
+- [x] Customer — index
 
 ## Manajemen
 
-- [ ] Produk — index
-- [ ] Produk — form (create/edit)
-- [ ] Customer — index
 - [ ] Stok Barang
 - [ ] Stock Opname — index
 - [ ] Stock Opname — detail

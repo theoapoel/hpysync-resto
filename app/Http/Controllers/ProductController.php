@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\ItemCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 
 class ProductController extends Controller
 {
@@ -17,17 +18,62 @@ class ProductController extends Controller
         if ($request->category_id) $query->where('category_id', $request->category_id);
         if ($request->item_category_id) $query->where('item_category_id', $request->item_category_id);
         if ($request->status !== null) $query->where('is_active', $request->status);
-        $products = $query->latest()->paginate(20);
+        $products = $query->latest()->paginate(20)->withQueryString();
         $categories = Category::all();
         $itemCategories = ItemCategory::active()->orderBy('name')->get();
-        return view('products.index', compact('products', 'categories', 'itemCategories'));
+
+        return Inertia::render('Products/Index', [
+            'products' => [
+                'data'  => collect($products->items())->map(fn (Product $p) => [
+                    'id'             => $p->id,
+                    'name'           => $p->name,
+                    'sku'            => $p->sku,
+                    'category_name'  => $p->category?->name,
+                    'item_category_name' => $p->itemCategory?->name,
+                    'price'          => $p->price,
+                    'stock'          => $p->stock,
+                    'unit'           => $p->unit,
+                    'track_stock'    => $p->track_stock,
+                    'is_low_stock'   => $p->isLowStock(),
+                    'erp_synced'     => (bool) $p->erp_item_code,
+                    'is_active'      => $p->is_active,
+                    'edit_url'       => route('products.edit', $p),
+                ]),
+                'links' => $products->linkCollection()->toArray(),
+                'from'  => $products->firstItem(),
+                'to'    => $products->lastItem(),
+                'total' => $products->total(),
+            ],
+            'categories'     => $categories->map(fn ($c) => ['id' => $c->id, 'name' => $c->name]),
+            'itemCategories' => $itemCategories->map(fn ($c) => ['id' => $c->id, 'name' => $c->name]),
+            'filters'        => $request->only(['search', 'category_id', 'item_category_id']),
+            'indexUrl'       => route('products.index'),
+            'createUrl'      => route('products.create'),
+        ]);
+    }
+
+    private function formProps(?Product $product = null): array
+    {
+        return [
+            'product'        => $product ? [
+                'id' => $product->id, 'name' => $product->name, 'sku' => $product->sku,
+                'barcode' => $product->barcode, 'category_id' => $product->category_id,
+                'item_category_id' => $product->item_category_id, 'price' => $product->price,
+                'cost_price' => $product->cost_price, 'stock' => $product->stock,
+                'min_stock' => $product->min_stock, 'unit' => $product->unit,
+                'tax_rate' => $product->tax_rate, 'description' => $product->description,
+                'is_active' => $product->is_active, 'track_stock' => $product->track_stock,
+            ] : null,
+            'categories'     => Category::where('is_active', true)->get()->map(fn ($c) => ['id' => $c->id, 'name' => $c->name]),
+            'itemCategories' => ItemCategory::active()->orderBy('name')->get()->map(fn ($c) => ['id' => $c->id, 'name' => $c->name]),
+            'indexUrl'       => route('products.index'),
+            'submitUrl'      => $product ? route('products.update', $product) : route('products.store'),
+        ];
     }
 
     public function create()
     {
-        $categories = Category::where('is_active', true)->get();
-        $itemCategories = ItemCategory::active()->orderBy('name')->get();
-        return view('products.form', compact('categories', 'itemCategories'));
+        return Inertia::render('Products/Form', $this->formProps());
     }
 
     public function store(Request $request)
@@ -54,9 +100,7 @@ class ProductController extends Controller
 
     public function edit(Product $product)
     {
-        $categories = Category::where('is_active', true)->get();
-        $itemCategories = ItemCategory::active()->orderBy('name')->get();
-        return view('products.form', compact('product', 'categories', 'itemCategories'));
+        return Inertia::render('Products/Form', $this->formProps($product));
     }
 
     public function update(Request $request, Product $product)
