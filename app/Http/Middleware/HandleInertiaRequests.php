@@ -66,6 +66,14 @@ class HandleInertiaRequests extends Middleware
      * Mirrors the section/menu structure of resources/views/layouts/app.blade.php,
      * gated by the same RolePermission modules.
      */
+    /**
+     * Route names that have been migrated to Inertia pages so far.
+     * Everything else still returns classic Blade HTML — those must be
+     * navigated to with a real full-page link, never Inertia's <Link>,
+     * or Inertia's client shows the raw HTML in its error dialog.
+     */
+    protected const INERTIA_ROUTES = ['dashboard'];
+
     protected function buildNav($user, Request $request): array
     {
         $map = [
@@ -129,6 +137,7 @@ class HandleInertiaRequests extends Middleware
                     'active' => $request->routeIs(...$map[$key]['active']),
                     'badge' => ($map[$key]['badge'] ?? false) && $pendingSync > 0 ? $pendingSync : null,
                     'danger' => $map[$key]['danger'] ?? false,
+                    'inertia' => in_array($map[$key]['route'], self::INERTIA_ROUTES, true),
                 ];
             }
             if ($items) {

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { Link, router, usePage } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import { AnimatePresence, motion } from 'motion-v';
 
 const props = defineProps({
@@ -76,8 +76,18 @@ const erpLabel = computed(() => ({
     hidden: '',
 }[erpState.value]));
 
+// Plain form submit, not Inertia's router.post — logout redirects to the
+// (still-Blade) login page, and Inertia would show that in its error dialog
+// instead of navigating there, same issue as the nav links above.
 function logout() {
-    if (page.props.logoutUrl) router.post(page.props.logoutUrl);
+    if (!page.props.logoutUrl) return;
+    const token = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = page.props.logoutUrl;
+    form.innerHTML = `<input type="hidden" name="_token" value="${token}">`;
+    document.body.appendChild(form);
+    form.submit();
 }
 </script>
 
@@ -96,9 +106,9 @@ function logout() {
                 <span class="erp-dot"></span>
                 <span>{{ erpLabel }}</span>
             </div>
-            <Link v-if="pendingSync > 0" href="/sync" class="sync-badge warn">
+            <a v-if="pendingSync > 0" href="/sync" class="sync-badge warn">
                 <i class="fas fa-sync-alt"></i> {{ pendingSync }} Pending Sync
-            </Link>
+            </a>
             <div class="user-menu">
                 <div class="user-avatar">{{ (auth?.name || '?').charAt(0) }}</div>
                 <span class="user-name">{{ auth?.name }}</span>
@@ -115,7 +125,15 @@ function logout() {
     }">
         <template v-for="section in nav" :key="section.section">
             <div class="nav-section" v-show="!collapsed || isMobile()">{{ section.section }}</div>
-            <Link
+            <!--
+                Only routes already migrated to Inertia (item.inertia) may use <Link>.
+                Everything else is still classic Blade HTML — Inertia's client would
+                show that raw response inside its error dialog instead of navigating,
+                which looks like a page stacked on top of a page. Plain <a> forces a
+                real full-page load for those, exactly like the old Blade layout did.
+            -->
+            <component
+                :is="item.inertia ? Link : 'a'"
                 v-for="item in section.items"
                 :key="item.key"
                 :href="item.href"
@@ -127,7 +145,7 @@ function logout() {
                 <i :class="['fas', item.icon, 'nav-icon']" :style="item.danger ? { color: 'var(--red)' } : undefined"></i>
                 <span class="nav-label" v-show="!collapsed || isMobile()">{{ item.label }}</span>
                 <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
-            </Link>
+            </component>
         </template>
     </nav>
 
