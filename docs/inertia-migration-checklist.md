@@ -10,10 +10,10 @@ Checklist konversi halaman dari Blade ke Inertia.js + Vue 3 + motion-v, dari yan
 - [x] Produk — index
 - [x] Produk — form (create/edit)
 - [x] Customer — index
+- [x] Stok Barang
 
 ## Manajemen
 
-- [ ] Stok Barang
 - [ ] Stock Opname — index
 - [ ] Stock Opname — detail
 - [ ] Repack (Konversi)
@@ -57,5 +57,5 @@ Checklist konversi halaman dari Blade ke Inertia.js + Vue 3 + motion-v, dari yan
 ---
 
 **Catatan:**
-- Skill `ui-ux-pro-max` belum terinstal resmi via `/plugin` — panduan diambil dengan clone manual repo `nextlevelbuilder/ui-ux-pro-max-skill` ke scratchpad dan menjalankan `scripts/search.py` langsung.
+- Skill `ui-ux-pro-max` sudah terinstal permanen di `~/.claude/skills/ui-ux-pro-max/` (bukan cuma clone scratchpad lagi).
 - Halaman yang belum dikonversi tetap pakai `<a href>` biasa di nav/link (bukan `<Link>` Inertia) — lihat komentar di `HandleInertiaRequests.php` dan `AppLayout.vue`.

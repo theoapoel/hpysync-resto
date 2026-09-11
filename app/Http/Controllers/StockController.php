@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\ItemCategory;
 use App\Models\Product;
 use App\Models\ProductStock;
+use App\Models\Setting;
 use App\Models\Warehouse;
 use App\Services\ErpNextService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Inertia\Inertia;
 
 class StockController extends Controller
 {
@@ -16,29 +18,30 @@ class StockController extends Controller
 
     public function debugBinEndpoint()
     {
-        $erpUrl    = \App\Models\Setting::get('erpnext_url', env('ERPNEXT_URL', ''));
-        $apiKey    = \App\Models\Setting::get('erpnext_api_key', env('ERPNEXT_API_KEY', ''));
+        $erpUrl = Setting::get('erpnext_url', env('ERPNEXT_URL', ''));
+        $apiKey = Setting::get('erpnext_api_key', env('ERPNEXT_API_KEY', ''));
         $warehouses = Warehouse::where('is_active', true)->get(['id', 'name', 'warehouse_name', 'is_default']);
 
         $endpoints = $warehouses->map(function ($wh) use ($erpUrl) {
             $params = http_build_query([
-                'fields'            => json_encode(['item_code', 'warehouse', 'actual_qty']),
-                'filters'           => json_encode([['warehouse', '=', $wh->name]]),
+                'fields' => json_encode(['item_code', 'warehouse', 'actual_qty']),
+                'filters' => json_encode([['warehouse', '=', $wh->name]]),
                 'limit_page_length' => 0,
             ]);
+
             return [
                 'warehouse_lokal' => $wh->warehouse_name ?: $wh->name,
-                'warehouse_erp'   => $wh->name,
-                'is_default'      => $wh->is_default,
-                'url'             => rtrim($erpUrl, '/') . '/api/resource/Bin?' . $params,
+                'warehouse_erp' => $wh->name,
+                'is_default' => $wh->is_default,
+                'url' => rtrim($erpUrl, '/').'/api/resource/Bin?'.$params,
             ];
         });
 
         return response()->json([
-            'base_url'          => $erpUrl,
-            'authorization'     => 'token ' . $apiKey . ':***',
+            'base_url' => $erpUrl,
+            'authorization' => 'token '.$apiKey.':***',
             'active_warehouses' => $warehouses->count(),
-            'endpoints'         => $endpoints,
+            'endpoints' => $endpoints,
         ], 200, [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
 
@@ -49,12 +52,12 @@ class StockController extends Controller
         // STEP 1: Cek warehouse aktif di lokal
         $activeWarehouses = Warehouse::where('is_active', true)->get();
         $log[] = [
-            'step'   => '1. Warehouse aktif di lokal',
-            'count'  => $activeWarehouses->count(),
-            'detail' => $activeWarehouses->map(fn($w) => [
-                'id'         => $w->id,
-                'name'       => $w->name,
-                'label'      => $w->warehouse_name,
+            'step' => '1. Warehouse aktif di lokal',
+            'count' => $activeWarehouses->count(),
+            'detail' => $activeWarehouses->map(fn ($w) => [
+                'id' => $w->id,
+                'name' => $w->name,
+                'label' => $w->warehouse_name,
                 'is_default' => $w->is_default,
             ])->values(),
         ];
@@ -71,8 +74,8 @@ class StockController extends Controller
             ->keyBy('sku');
 
         $log[] = [
-            'step'        => '2. Produk lokal (track_stock=true, sku not null)',
-            'count'       => $products->count(),
+            'step' => '2. Produk lokal (track_stock=true, sku not null)',
+            'count' => $products->count(),
             'sample_skus' => $products->keys()->take(10)->values(),
         ];
 
@@ -82,25 +85,26 @@ class StockController extends Controller
 
             $result = $this->erp->pullStockFromBin($warehouse->name);
 
-            if (!$result['success']) {
+            if (! $result['success']) {
                 $log[] = [
-                    'step'      => "3. Bin ERP — {$whLabel}",
-                    'erp_name'  => $warehouse->name,
-                    'error'     => $result['error'],
+                    'step' => "3. Bin ERP — {$whLabel}",
+                    'erp_name' => $warehouse->name,
+                    'error' => $result['error'],
                 ];
+
                 continue;
             }
 
             $bins = $result['data'];
 
-            $matched   = [];
+            $matched = [];
             $unmatched = [];
 
             foreach ($bins as $bin) {
                 $found = $products->has($bin['item_code']);
                 if ($found) {
                     $matched[] = [
-                        'item_code'  => $bin['item_code'],
+                        'item_code' => $bin['item_code'],
                         'actual_qty' => $bin['actual_qty'],
                     ];
                 } else {
@@ -109,14 +113,14 @@ class StockController extends Controller
             }
 
             $log[] = [
-                'step'              => "3. Bin ERP — {$whLabel}",
-                'erp_name'          => $warehouse->name,
-                'is_default'        => $warehouse->is_default,
-                'total_bins'        => count($bins),
-                'matched_count'     => count($matched),
-                'unmatched_count'   => count($unmatched),
-                'matched_sample'    => array_slice($matched, 0, 5),
-                'unmatched_sample'  => array_slice($unmatched, 0, 10),
+                'step' => "3. Bin ERP — {$whLabel}",
+                'erp_name' => $warehouse->name,
+                'is_default' => $warehouse->is_default,
+                'total_bins' => count($bins),
+                'matched_count' => count($matched),
+                'unmatched_count' => count($unmatched),
+                'matched_sample' => array_slice($matched, 0, 5),
+                'unmatched_sample' => array_slice($unmatched, 0, 10),
             ];
         }
 
@@ -126,11 +130,11 @@ class StockController extends Controller
     public function syncWarehouse(Warehouse $warehouse)
     {
         // Pastikan tabel ada
-        if (!Schema::hasTable('product_stocks')) {
+        if (! Schema::hasTable('product_stocks')) {
             return response()->json([
-                'success'   => false,
+                'success' => false,
                 'warehouse' => $warehouse->warehouse_name ?: $warehouse->name,
-                'error'     => 'Tabel product_stocks belum ada. Jalankan: php artisan migrate',
+                'error' => 'Tabel product_stocks belum ada. Jalankan: php artisan migrate',
             ]);
         }
 
@@ -143,35 +147,36 @@ class StockController extends Controller
 
         if ($products->isEmpty()) {
             return response()->json([
-                'success'   => false,
+                'success' => false,
                 'warehouse' => $warehouse->warehouse_name ?: $warehouse->name,
-                'error'     => 'Tidak ada produk dengan erp_item_code. Lakukan Pull Products dari menu Sync HPY terlebih dahulu.',
+                'error' => 'Tidak ada produk dengan erp_item_code. Lakukan Pull Products dari menu Sync HPY terlebih dahulu.',
             ]);
         }
 
         // Tarik Bin dari ERP untuk warehouse ini
         $result = $this->erp->pullStockFromBin($warehouse->name);
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return response()->json([
-                'success'   => false,
+                'success' => false,
                 'warehouse' => $warehouse->warehouse_name ?: $warehouse->name,
-                'error'     => $result['error'],
+                'error' => $result['error'],
             ]);
         }
 
-        $bins    = $result['data'];
+        $bins = $result['data'];
         $updated = 0;
         $skipped = 0;
-        $writeError  = null;
-        $updatedIds  = [];
+        $writeError = null;
+        $updatedIds = [];
 
         foreach ($bins as $bin) {
             // Cocokkan bin.item_code dengan products.erp_item_code
             $product = $products->get($bin['item_code']);
 
-            if (!$product) {
+            if (! $product) {
                 $skipped++;
+
                 continue;
             }
 
@@ -181,7 +186,7 @@ class StockController extends Controller
                 // Update stok per warehouse di tabel product_stocks
                 ProductStock::updateOrCreate(
                     ['product_id' => $product->id, 'warehouse_id' => $warehouse->id],
-                    ['quantity'   => $qty]
+                    ['quantity' => $qty]
                 );
 
                 // Sinkronkan juga products.stock untuk warehouse default
@@ -199,10 +204,10 @@ class StockController extends Controller
 
         if ($writeError) {
             return response()->json([
-                'success'   => false,
+                'success' => false,
                 'warehouse' => $warehouse->warehouse_name ?: $warehouse->name,
-                'error'     => 'Gagal tulis ke DB: ' . $writeError,
-                'updated'   => $updated,
+                'error' => 'Gagal tulis ke DB: '.$writeError,
+                'updated' => $updated,
             ]);
         }
 
@@ -215,15 +220,15 @@ class StockController extends Controller
         $savedRows = ProductStock::where('warehouse_id', $warehouse->id)->count();
 
         return response()->json([
-            'success'    => true,
-            'warehouse'  => $warehouse->warehouse_name ?: $warehouse->name,
-            'erp_name'   => $warehouse->name,
+            'success' => true,
+            'warehouse' => $warehouse->warehouse_name ?: $warehouse->name,
+            'erp_name' => $warehouse->name,
             'is_default' => $warehouse->is_default,
-            'bin_count'  => count($bins),
-            'updated'    => $updated,
-            'skipped'    => $skipped,
-            'removed'    => $removed,
-            'db_rows'    => $savedRows,
+            'bin_count' => count($bins),
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'removed' => $removed,
+            'db_rows' => $savedRows,
         ]);
     }
 
@@ -241,28 +246,30 @@ class StockController extends Controller
             ->get()
             ->keyBy('sku');
 
-        $totalUpdated  = 0;
+        $totalUpdated = 0;
         $warehouseLogs = [];
-        $errors        = [];
-        $writeErrors   = [];
+        $errors = [];
+        $writeErrors = [];
 
         foreach ($activeWarehouses as $warehouse) {
             $result = $this->erp->pullStockFromBin($warehouse->name);
 
-            if (!$result['success']) {
-                $errors[] = ($warehouse->warehouse_name ?: $warehouse->name) . ': ' . $result['error'];
+            if (! $result['success']) {
+                $errors[] = ($warehouse->warehouse_name ?: $warehouse->name).': '.$result['error'];
+
                 continue;
             }
 
-            $bins    = $result['data'];
+            $bins = $result['data'];
             $updated = 0;
             $skipped = 0;
 
             foreach ($bins as $bin) {
                 $product = $products->get($bin['item_code']);
 
-                if (!$product) {
+                if (! $product) {
                     $skipped++;
+
                     continue;
                 }
 
@@ -271,7 +278,7 @@ class StockController extends Controller
                 try {
                     ProductStock::updateOrCreate(
                         ['product_id' => $product->id, 'warehouse_id' => $warehouse->id],
-                        ['quantity'   => $qty]
+                        ['quantity' => $qty]
                     );
 
                     if ($warehouse->is_default) {
@@ -280,8 +287,10 @@ class StockController extends Controller
 
                     $updated++;
                 } catch (\Exception $e) {
-                    $writeErrors[] = "SKU {$bin['item_code']}: " . $e->getMessage();
-                    if (count($writeErrors) >= 3) break;
+                    $writeErrors[] = "SKU {$bin['item_code']}: ".$e->getMessage();
+                    if (count($writeErrors) >= 3) {
+                        break;
+                    }
                 }
             }
 
@@ -291,22 +300,22 @@ class StockController extends Controller
             $actualRows = ProductStock::where('warehouse_id', $warehouse->id)->count();
 
             $warehouseLogs[] = [
-                'warehouse'        => $warehouse->warehouse_name ?: $warehouse->name,
-                'erp_name'         => $warehouse->name,
-                'bin_count'        => count($bins),
-                'updated'          => $updated,
-                'skipped'          => $skipped,
-                'is_default'       => $warehouse->is_default,
-                'db_rows_after'    => $actualRows,
+                'warehouse' => $warehouse->warehouse_name ?: $warehouse->name,
+                'erp_name' => $warehouse->name,
+                'bin_count' => count($bins),
+                'updated' => $updated,
+                'skipped' => $skipped,
+                'is_default' => $warehouse->is_default,
+                'db_rows_after' => $actualRows,
             ];
         }
 
         return response()->json([
-            'success'        => true,
-            'warehouses'     => $warehouseLogs,
-            'total'          => $totalUpdated,
-            'errors'         => $errors,
-            'write_errors'   => $writeErrors,
+            'success' => true,
+            'warehouses' => $warehouseLogs,
+            'total' => $totalUpdated,
+            'errors' => $errors,
+            'write_errors' => $writeErrors,
             'local_products' => $products->count(),
         ]);
     }
@@ -325,28 +334,28 @@ class StockController extends Controller
 
         $query = ProductStock::with(['product.category', 'product.itemCategory'])
             ->where('warehouse_id', $selectedWarehouseId)
-            ->whereHas('product', fn($q) => $q->where('is_active', true)->where('track_stock', true));
+            ->whereHas('product', fn ($q) => $q->where('is_active', true)->where('track_stock', true));
 
         if ($request->search) {
             $query->whereHas('product', function ($q) use ($request) {
                 $q->where('name', 'like', "%{$request->search}%")
-                  ->orWhere('sku', 'like', "%{$request->search}%")
-                  ->orWhere('barcode', 'like', "%{$request->search}%");
+                    ->orWhere('sku', 'like', "%{$request->search}%")
+                    ->orWhere('barcode', 'like', "%{$request->search}%");
             });
         }
 
         if ($request->item_category_id) {
-            $query->whereHas('product', fn($q) => $q->where('item_category_id', $request->item_category_id));
+            $query->whereHas('product', fn ($q) => $q->where('item_category_id', $request->item_category_id));
         }
 
         if ($request->status === 'empty') {
             $query->where('quantity', '<=', 0);
         } elseif ($request->status === 'low') {
             $query->where('quantity', '>', 0)
-                  ->whereHas('product', fn($q) => $q->whereColumn('product_stocks.quantity', '<=', 'products.min_stock'));
+                ->whereHas('product', fn ($q) => $q->whereColumn('product_stocks.quantity', '<=', 'products.min_stock'));
         } elseif ($request->status === 'safe') {
             $query->where('quantity', '>', 0)
-                  ->whereHas('product', fn($q) => $q->whereColumn('product_stocks.quantity', '>', 'products.min_stock'));
+                ->whereHas('product', fn ($q) => $q->whereColumn('product_stocks.quantity', '>', 'products.min_stock'));
         }
 
         $stocks = $query->join('products', 'products.id', '=', 'product_stocks.product_id')
@@ -357,20 +366,80 @@ class StockController extends Controller
 
         // Summary stats untuk warehouse yang dipilih
         $allInWarehouse = ProductStock::where('warehouse_id', $selectedWarehouseId)
-            ->whereHas('product', fn($q) => $q->where('is_active', true)->where('track_stock', true));
+            ->whereHas('product', fn ($q) => $q->where('is_active', true)->where('track_stock', true));
 
         $totalProducts = (clone $allInWarehouse)->count();
-        $totalEmpty    = (clone $allInWarehouse)->where('quantity', '<=', 0)->count();
-        $totalLow      = (clone $allInWarehouse)->where('quantity', '>', 0)
-            ->whereHas('product', fn($q) => $q->whereColumn('product_stocks.quantity', '<=', 'products.min_stock'))
+        $totalEmpty = (clone $allInWarehouse)->where('quantity', '<=', 0)->count();
+        $totalLow = (clone $allInWarehouse)->where('quantity', '>', 0)
+            ->whereHas('product', fn ($q) => $q->whereColumn('product_stocks.quantity', '<=', 'products.min_stock'))
             ->count();
-        $totalSafe     = $totalProducts - $totalEmpty - $totalLow;
+        $totalSafe = $totalProducts - $totalEmpty - $totalLow;
 
         $itemCategories = ItemCategory::active()->orderBy('name')->get();
 
-        return view('stock.index', compact(
-            'stocks', 'itemCategories', 'warehouses', 'selectedWarehouse', 'selectedWarehouseId',
-            'totalProducts', 'totalEmpty', 'totalLow', 'totalSafe'
-        ));
+        // Tab-switching keeps search/status, drops page (same as the old
+        // fullUrlWithQuery(..., ['page' => null]) behaviour).
+        $tabUrl = fn (array $override) => route('stock.index', array_filter(array_merge([
+            'warehouse_id' => $selectedWarehouseId,
+            'item_category_id' => $request->item_category_id,
+            'search' => $request->search,
+            'status' => $request->status,
+        ], $override), fn ($v) => $v !== null && $v !== ''));
+
+        return Inertia::render('Stock/Index', [
+            'stocks' => [
+                'data' => collect($stocks->items())->map(function (ProductStock $stock) {
+                    $product = $stock->product;
+                    $isEmpty = $stock->quantity <= 0;
+                    $isLow = ! $isEmpty && $stock->quantity <= $product->min_stock;
+
+                    return [
+                        'id' => $stock->id,
+                        'product_name' => $product->name,
+                        'product_image' => $product->image ? asset($product->image) : $product->erp_image,
+                        'sku' => $product->sku,
+                        'category_name' => $product->category?->name,
+                        'item_category_name' => $product->itemCategory?->name,
+                        'quantity' => $stock->quantity,
+                        'min_stock' => $product->min_stock,
+                        'unit' => $product->unit,
+                        'status' => $isEmpty ? 'empty' : ($isLow ? 'low' : 'safe'),
+                    ];
+                }),
+                'links' => $stocks->linkCollection()->toArray(),
+                'from' => $stocks->firstItem(),
+                'to' => $stocks->lastItem(),
+                'total' => $stocks->total(),
+            ],
+            'warehouseTabs' => $warehouses->map(fn (Warehouse $w) => [
+                'id' => $w->id,
+                'label' => $w->warehouse_name ?: $w->name,
+                'is_default' => $w->is_default,
+                'active' => $w->id == $selectedWarehouseId,
+                'url' => $tabUrl(['warehouse_id' => $w->id]),
+            ]),
+            'categoryTabs' => collect([(object) ['id' => null, 'name' => 'Semua']])
+                ->concat($itemCategories)
+                ->map(fn ($c) => [
+                    'id' => $c->id,
+                    'name' => $c->name,
+                    'active' => $c->id === null ? ! $request->item_category_id : (string) $request->item_category_id === (string) $c->id,
+                    'url' => $tabUrl(['item_category_id' => $c->id]),
+                ]),
+            'selectedWarehouse' => $selectedWarehouse ? [
+                'id' => $selectedWarehouse->id,
+                'label' => $selectedWarehouse->warehouse_name ?: $selectedWarehouse->name,
+            ] : null,
+            'selectedWarehouseId' => $selectedWarehouseId,
+            'summary' => [
+                'total' => $totalProducts, 'safe' => $totalSafe, 'low' => $totalLow, 'empty' => $totalEmpty,
+            ],
+            'filters' => $request->only(['search', 'status']),
+            'indexUrl' => $tabUrl([]),
+            'syncBaseUrl' => url('stock/sync-warehouse'),
+            'warehousesForSync' => $warehouses->map(fn ($w) => [
+                'id' => $w->id, 'label' => $w->warehouse_name ?: $w->name, 'is_default' => $w->is_default,
+            ]),
+        ]);
     }
 }
