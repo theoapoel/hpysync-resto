@@ -79,6 +79,7 @@ class HandleInertiaRequests extends Middleware
         'dashboard', 'transactions.index', 'products.index', 'products.create', 'products.edit',
         'customers.index', 'stock.index', 'stock-opname.index', 'stock-opname.create', 'stock-opname.show',
         'slices.index', 'slices.create', 'slices.show',
+        'stock-transfer.index', 'stock-transfer.send.create', 'stock-transfer.receive.create', 'stock-transfer.show',
     ];
 
     protected function buildNav($user, Request $request): array
