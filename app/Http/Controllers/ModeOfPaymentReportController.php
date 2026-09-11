@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Setting;
+use App\Models\User;
 use App\Services\ErpNextService;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class ModeOfPaymentReportController extends Controller
 {
@@ -20,7 +22,13 @@ class ModeOfPaymentReportController extends Controller
 
         $dateLocked = Setting::reportDateLocked();
 
-        return view('reports.mode-of-payment', compact('posProfile', 'scopedToUser', 'scopedUserName', 'dateLocked'));
+        return Inertia::render('Reports/ModeOfPayment', [
+            'posProfile' => $posProfile,
+            'scopedToUser' => $scopedToUser,
+            'scopedUserName' => $scopedUserName,
+            'dateLocked' => $dateLocked,
+            'fetchUrl' => route('mop-report.fetch'),
+        ]);
     }
 
     public function fetch(Request $request)
@@ -123,7 +131,7 @@ class ModeOfPaymentReportController extends Controller
 
         // Rekap per kasir (owner POS Invoice = email ERP User). Petakan email → nama lokal.
         $owners = array_keys($byCashier);
-        $ownerNames = \App\Models\User::whereIn('email', $owners)->pluck('name', 'email')->all();
+        $ownerNames = User::whereIn('email', $owners)->pluck('name', 'email')->all();
 
         $cashierRows = [];
         foreach ($byCashier as $owner => $byMode) {

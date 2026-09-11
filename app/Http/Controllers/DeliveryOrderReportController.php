@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\DeliveryOrder;
+use App\Models\Setting;
 use App\Services\ErpNextService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 /**
  * Laporan penjualan Delivery Order — sumber lokal (tabel delivery_orders), tanpa
@@ -19,7 +21,7 @@ class DeliveryOrderReportController extends Controller
         // Rentang tanggal berdasarkan tanggal pengiriman (delivery_date). Default: bulan berjalan.
         // Batas rentang tanggal (Pengaturan Toko): bila 'today', semua role selain
         // admin dikunci ke tanggal hari ini — rentang dari request diabaikan.
-        $dateLocked = \App\Models\Setting::reportDateLocked();
+        $dateLocked = Setting::reportDateLocked();
 
         if ($dateLocked) {
             $from = Carbon::today()->startOfDay();
@@ -53,10 +55,37 @@ class DeliveryOrderReportController extends Controller
         // Berapa order yang invoice HPY-nya sudah terbit (referensi lokal terisi).
         $withInvoice = $orders->filter(fn ($o) => ! empty($o->erp_sales_invoice))->count();
 
-        return view('reports.delivery-order', compact(
-            'orders', 'from', 'to', 'status', 'payment', 'dateLocked',
-            'totalSales', 'totalPaid', 'totalOutstanding', 'count', 'withInvoice'
-        ));
+        return Inertia::render('Reports/DeliveryOrder', [
+            'orders' => $orders->map(fn (DeliveryOrder $o) => [
+                'id' => $o->id,
+                'order_no' => $o->order_no,
+                'delivery_date' => $o->delivery_date?->isoFormat('D MMM Y'),
+                'customer_name' => $o->customer?->name,
+                'total' => $o->total,
+                'paid' => $o->totalPaid(),
+                'outstanding' => $o->outstanding(),
+                'status' => $o->status,
+                'payment_status' => $o->payment_status,
+                'erp_sales_invoice' => $o->erp_sales_invoice,
+                'show_url' => route('delivery-orders.show', $o),
+                'check_erp_url' => route('do-report.check-erp', $o),
+            ]),
+            'filters' => [
+                'date_from' => $from->format('Y-m-d'),
+                'date_to' => $to->format('Y-m-d'),
+                'status' => $status,
+                'payment' => $payment,
+            ],
+            'dateLocked' => $dateLocked,
+            'summary' => [
+                'total_sales' => $totalSales,
+                'total_paid' => $totalPaid,
+                'total_outstanding' => $totalOutstanding,
+                'count' => $count,
+                'with_invoice' => $withInvoice,
+            ],
+            'indexUrl' => route('do-report.index'),
+        ]);
     }
 
     /**

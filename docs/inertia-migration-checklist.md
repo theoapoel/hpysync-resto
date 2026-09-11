@@ -29,9 +29,9 @@ Checklist konversi halaman dari Blade ke Inertia.js + Vue 3 + motion-v, dari yan
 ## Integrasi
 
 - [ ] Sync HPY
-- [ ] Laporan Online
-- [ ] Laporan Pembayaran
-- [ ] Laporan DO
+- [x] Laporan Online
+- [x] Laporan Pembayaran
+- [x] Laporan DO
 
 ## Sistem
 
