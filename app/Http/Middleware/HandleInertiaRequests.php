@@ -75,7 +75,10 @@ class HandleInertiaRequests extends Middleware
      * navigated to with a real full-page link, never Inertia's <Link>,
      * or Inertia's client shows the raw HTML in its error dialog.
      */
-    protected const INERTIA_ROUTES = ['dashboard', 'transactions.index', 'products.index', 'products.create', 'products.edit', 'customers.index', 'stock.index'];
+    protected const INERTIA_ROUTES = [
+        'dashboard', 'transactions.index', 'products.index', 'products.create', 'products.edit',
+        'customers.index', 'stock.index', 'stock-opname.index', 'stock-opname.create', 'stock-opname.show',
+    ];
 
     protected function buildNav($user, Request $request): array
     {

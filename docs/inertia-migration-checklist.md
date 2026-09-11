@@ -11,11 +11,10 @@ Checklist konversi halaman dari Blade ke Inertia.js + Vue 3 + motion-v, dari yan
 - [x] Produk — form (create/edit)
 - [x] Customer — index
 - [x] Stok Barang
+- [x] Stock Opname — index, create, detail
 
 ## Manajemen
 
-- [ ] Stock Opname — index
-- [ ] Stock Opname — detail
 - [ ] Repack (Konversi)
 - [ ] Transfer Barang — index
 - [ ] Transfer Barang — detail
