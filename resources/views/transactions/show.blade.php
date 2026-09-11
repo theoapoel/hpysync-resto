@@ -38,7 +38,7 @@
         <div class="card" style="margin-bottom:16px">
             <div class="card-header"><div class="card-title">Ringkasan</div></div>
             <div class="card-body">
-                <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px"><span class="text-muted">Kasir</span><span>{{ $transaction->user->name }}</span></div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px"><span class="text-muted">Kasir</span><span>{{ $transaction->user?->name ?? '-' }}</span></div>
                 <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px"><span class="text-muted">Customer</span><span>{{ $transaction->customer?->name ?? 'Walk-in' }}</span></div>
                 <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px"><span class="text-muted">Pembayaran</span><span class="badge badge-blue">{{ strtoupper($transaction->payment_method) }}</span></div>
                 @if($transaction->pos_class)

@@ -43,7 +43,7 @@
     @elseif($transaction->customer)
         <div class="row"><span>Customer</span><span class="bold">{{ $transaction->customer->name }}</span></div>
     @endif
-    <div class="row"><span>Kasir</span><span>{{ $transaction->user->name }}</span></div>
+    <div class="row"><span>Kasir</span><span>{{ $transaction->user?->name ?? '-' }}</span></div>
     @if($transaction->order_type)
         <div class="row"><span>Tipe</span><span>{{ ['dine_in'=>'Dine In','take_away'=>'Take Away','delivery'=>'Delivery'][$transaction->order_type] ?? $transaction->order_type }}</span></div>
     @endif

@@ -61,7 +61,7 @@
                 </div>
                 <div style="display:flex;justify-content:space-between;margin-bottom:8px">
                     <span style="font-size:13px;color:var(--text3)">Kasir</span>
-                    <span style="font-weight:500">{{ $transaction->user->name }}</span>
+                    <span style="font-weight:500">{{ $transaction->user?->name ?? '-' }}</span>
                 </div>
                 @if($transaction->customer)
                 <div style="display:flex;justify-content:space-between">

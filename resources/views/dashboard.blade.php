@@ -113,7 +113,7 @@
             @forelse($recentTx as $tx)
             <tr>
                 <td><a href="{{ route('transactions.show', $tx) }}" class="text-blue font-medium">{{ $tx->invoice_no }}</a></td>
-                <td>{{ $tx->user->name }}</td>
+                <td>{{ $tx->user?->name ?? '-' }}</td>
                 <td>{{ $tx->customer?->name ?? '<span class="text-muted">Walk-in</span>' }}</td>
                 <td class="money">Rp {{ number_format($tx->total, 0, ',', '.') }}</td>
                 <td>

@@ -27,7 +27,7 @@
             @forelse($transactions as $tx)
             <tr>
                 <td><a href="{{ route('transactions.show',$tx) }}" class="text-blue font-medium">{{ $tx->invoice_no }}</a></td>
-                <td class="text-sm">{{ $tx->user->name }}</td>
+                <td class="text-sm">{{ $tx->user?->name ?? '-' }}</td>
                 <td class="text-sm">{{ $tx->customer?->name ?? '<span class="text-muted">Walk-in</span>' }}</td>
                 <td class="money font-bold">Rp {{ number_format($tx->total,0,',','.') }}</td>
                 <td><span class="badge {{ ['cash'=>'badge-green','card'=>'badge-blue','transfer'=>'badge-yellow','qris'=>'badge-blue'][$tx->payment_method]??'badge-gray' }}">{{ strtoupper($tx->payment_method) }}</span></td>

@@ -376,7 +376,7 @@
             @foreach($failedTransactions as $tx)
             <tr>
                 <td class="font-medium text-blue">{{ $tx->invoice_no }}</td>
-                <td>{{ $tx->user->name }}</td>
+                <td>{{ $tx->user?->name ?? '-' }}</td>
                 <td class="money">Rp {{ number_format($tx->total, 0, ',', '.') }}</td>
                 <td class="text-sm" style="color:#EA4335;max-width:300px">
                     <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px" title="{{ $tx->erp_sync_error }}">

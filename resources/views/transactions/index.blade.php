@@ -75,7 +75,7 @@
                         {{ $tx->invoice_no }}
                     </a>
                 </td>
-                <td class="text-sm">{{ $tx->user->name }}</td>
+                <td class="text-sm">{{ $tx->user?->name ?? '-' }}</td>
                 <td class="text-sm">
                     @if($tx->customer)
                         <div style="display:flex;align-items:center;gap:6px">
