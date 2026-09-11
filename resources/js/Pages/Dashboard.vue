@@ -1,5 +1,5 @@
 <script setup>
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import { motion } from 'motion-v';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
@@ -140,7 +140,7 @@ function statValue(key) {
         <div class="card">
             <div class="card-header">
                 <div class="card-title"><i class="fas fa-clock text-blue"></i> Transaksi Terbaru</div>
-                <a :href="transactionsUrl" class="btn btn-ghost btn-sm">Lihat Semua <i class="fas fa-arrow-right"></i></a>
+                <Link :href="transactionsUrl" class="btn btn-ghost btn-sm">Lihat Semua <i class="fas fa-arrow-right"></i></Link>
             </div>
             <div class="table-wrap">
                 <table>
@@ -155,7 +155,7 @@ function statValue(key) {
                             <td colspan="7" style="text-align:center;padding:40px;color:#80868B">Belum ada transaksi</td>
                         </tr>
                         <tr v-for="tx in recentTx" :key="tx.id">
-                            <td><a :href="tx.show_url" class="text-blue font-medium">{{ tx.invoice_no }}</a></td>
+                            <td><Link :href="tx.show_url" class="text-blue font-medium">{{ tx.invoice_no }}</Link></td>
                             <td>{{ tx.user_name ?? '-' }}</td>
                             <td>
                                 <span v-if="tx.customer_name">{{ tx.customer_name }}</span>

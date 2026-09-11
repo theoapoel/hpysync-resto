@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 use App\Models\Setting;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class TransactionController extends Controller {
     public function index(Request $request) {
@@ -64,12 +65,101 @@ class TransactionController extends Controller {
             ->sort(fn ($a, $b) => strcasecmp($a, $b))
             ->values();
 
-        return view('transactions.index', compact('transactions','paymentMethods','summary','erpStates','erpCheckFailed','dateLocked'));
+        return Inertia::render('Transactions/Index', [
+            'transactions' => [
+                'data'  => collect($transactions->items())->map(
+                    fn ($tx) => $this->transformRow($tx, $erpStates, $erpCheckFailed)
+                ),
+                'links' => $transactions->linkCollection()->toArray(),
+                'from'  => $transactions->firstItem(),
+                'to'    => $transactions->lastItem(),
+                'total' => $transactions->total(),
+            ],
+            'paymentMethods' => $paymentMethods,
+            'summary'        => ['total_amount' => $summary->total_amount ?? 0],
+            'dateLocked'     => $dateLocked,
+            'filters'        => $request->only(['search', 'erp_invoice', 'date_from', 'date_to', 'status', 'payment_method']),
+            'posUrl'         => route('pos.index'),
+            'indexUrl'       => route('transactions.index'),
+        ]);
+    }
+
+    /**
+     * Precomputes every label/badge the row needs so the Vue page only renders,
+     * it doesn't re-derive business rules (docstatus meaning, badge colors, ...).
+     */
+    private function transformRow(Transaction $tx, array $erpStates, bool $erpCheckFailed): array {
+        $st = $tx->erp_pos_invoice ? ($erpStates[$tx->erp_pos_invoice] ?? null) : null;
+
+        if (! $tx->erp_pos_invoice) {
+            $erpCheck = ['type' => 'not_synced'];
+        } elseif ($erpCheckFailed) {
+            $erpCheck = ['type' => 'unchecked'];
+        } elseif ($st === null) {
+            $erpCheck = ['type' => 'not_found'];
+        } elseif ($st['docstatus'] === 2) {
+            $erpCheck = ['type' => 'cancelled_at_erp', 'stillCompletedLocally' => $tx->status === 'completed'];
+        } elseif ($st['docstatus'] === 0) {
+            $erpCheck = ['type' => 'draft_at_erp'];
+        } else {
+            $erpCheck = ['type' => 'submitted', 'label' => $st['status'] ?: 'Submitted'];
+        }
+
+        return [
+            'id'              => $tx->id,
+            'invoice_no'      => $tx->invoice_no,
+            'user_name'       => $tx->user?->name,
+            'customer_name'   => $tx->customer?->name,
+            'total'           => $tx->total,
+            'payment_method'  => $tx->payment_method,
+            'status'          => $tx->status,
+            'erp_sync_status' => $tx->erp_sync_status,
+            'erp_pos_invoice' => $tx->erp_pos_invoice,
+            'erp_check'       => $erpCheck,
+            'created_at'      => local_dt($tx->created_at),
+            'show_url'        => route('transactions.show', $tx),
+            'print_url'       => route('pos.print', $tx),
+            'print_kitchen_url' => route('pos.print-kitchen', $tx),
+        ];
     }
 
     public function show(Transaction $transaction) {
         $transaction->load('items.product','customer','user');
-        return view('transactions.show', compact('transaction'));
+
+        return Inertia::render('Transactions/Show', [
+            'transaction' => [
+                'id'              => $transaction->id,
+                'invoice_no'      => $transaction->invoice_no,
+                'status'          => $transaction->status,
+                'user_name'       => $transaction->user?->name,
+                'customer_name'   => $transaction->customer?->name ?? 'Walk-in',
+                'payment_method'  => $transaction->payment_method,
+                'pos_class'       => $transaction->pos_class,
+                'subtotal'        => $transaction->subtotal,
+                'discount_amount' => $transaction->discount_amount,
+                'tax_amount'      => $transaction->tax_amount,
+                'total'           => $transaction->total,
+                'paid_amount'     => $transaction->paid_amount,
+                'change_amount'   => $transaction->change_amount,
+                'erp_sync_status' => $transaction->erp_sync_status,
+                'erp_pos_invoice' => $transaction->erp_pos_invoice,
+                'erp_synced_at'   => $transaction->erp_synced_at ? local_dt($transaction->erp_synced_at) : null,
+                'erp_sync_error'  => $transaction->erp_sync_error ? \Illuminate\Support\Str::limit($transaction->erp_sync_error, 200) : null,
+                'items'           => $transaction->items->map(fn ($item) => [
+                    'product_name' => $item->product_name,
+                    'product_sku'  => $item->product_sku,
+                    'price'        => $item->price,
+                    'quantity'     => $item->quantity,
+                    'subtotal'     => $item->subtotal,
+                ]),
+            ],
+            'printUrl'        => route('pos.print', $transaction),
+            'printKitchenUrl' => route('pos.print-kitchen', $transaction),
+            'indexUrl'        => route('transactions.index'),
+            'cancelCheckUrl'  => route('transactions.cancel-check', $transaction),
+            'cancelUrl'       => route('transactions.cancel', $transaction),
+            'syncUrl'         => route('sync.single', $transaction),
+        ]);
     }
 
     /**

@@ -162,4 +162,6 @@ function logout() {
 
         <slot />
     </main>
+
+    <div id="toast-container"></div>
 </template>
