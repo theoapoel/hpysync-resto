@@ -98,15 +98,15 @@ function logout() {
         <button class="sidebar-toggle" title="Toggle menu" @click="toggleSidebar">
             <i class="fas fa-bars"></i>
         </button>
-        <Link href="/" class="header-brand" :style="{ width: collapsed && !isMobile() ? '64px' : undefined }">
-            <img src="/images/happypos.png" alt="HPYSync" style="height:52px;width:auto;object-fit:contain;">
+        <Link :href="page.props.dashboardUrl" class="header-brand" :style="{ width: collapsed && !isMobile() ? '64px' : undefined }">
+            <img :src="page.props.logoUrl" alt="HPYSync" style="height:52px;width:auto;object-fit:contain;">
         </Link>
         <div class="header-right">
             <div v-if="erpState !== 'hidden'" :class="['st-' + erpState]" id="erpStatus">
                 <span class="erp-dot"></span>
                 <span>{{ erpLabel }}</span>
             </div>
-            <a v-if="pendingSync > 0" href="/sync" class="sync-badge warn">
+            <a v-if="pendingSync > 0 && page.props.syncUrl" :href="page.props.syncUrl" class="sync-badge warn">
                 <i class="fas fa-sync-alt"></i> {{ pendingSync }} Pending Sync
             </a>
             <div class="user-menu">

@@ -53,6 +53,9 @@ class HandleInertiaRequests extends Middleware
             'nav' => fn () => $user ? $this->buildNav($user, $request) : [],
             'pendingSync' => fn () => $user ? $this->pendingSyncCount() : 0,
             'appName' => config('app.name', 'HPYSync Resto'),
+            'logoUrl' => asset('images/happypos.png'),
+            'dashboardUrl' => route('dashboard'),
+            'syncUrl' => fn () => RouteFacade::has('sync.index') ? route('sync.index') : null,
             'logoutUrl' => fn () => $user ? route('logout') : null,
             'erpPingUrl' => fn () => $user && RouteFacade::has('sync.ping') ? route('sync.ping') : null,
             'flash' => [
