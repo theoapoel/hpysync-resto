@@ -1,6 +1,7 @@
 <script setup>
 import { reactive, ref } from 'vue';
 import { Head } from '@inertiajs/vue3';
+import { AnimatePresence, motion } from 'motion-v';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
@@ -63,7 +64,9 @@ async function fetchReport() {
     }
     loading.value = true;
     error.value = '';
-    result.value = null;
+    // Keep the previous result visible (dimmed via .is-refetching) while the
+    // new one loads instead of clearing it — an empty flash mid-refetch reads
+    // as broken, not as "loading".
 
     try {
         const resp = await fetch(props.fetchUrl, {
@@ -79,6 +82,7 @@ async function fetchReport() {
         result.value = json;
     } catch (e) {
         error.value = e.message;
+        result.value = null;
     } finally {
         loading.value = false;
     }
@@ -174,9 +178,13 @@ function exportCsv() {
             </div>
         </div>
 
-        <div v-if="error" class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
+        <AnimatePresence mode="wait">
+            <motion.div v-if="error" key="error" :initial="{ opacity: 0, y: -6 }" :animate="{ opacity: 1, y: 0 }" :exit="{ opacity: 0 }">
+                <div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
+            </motion.div>
+        </AnimatePresence>
 
-        <template v-if="result">
+        <motion.div v-if="result" class="report-result" :class="{ 'is-refetching': loading }" :initial="{ opacity: 0 }" :animate="{ opacity: 1 }" :transition="{ duration: 0.25 }">
             <div v-if="result.truncated" class="alert alert-warning">
                 <i class="fas fa-exclamation-triangle"></i> Data terlalu banyak — hanya 1.000 transaksi pertama yang ditampilkan. Perkecil rentang tanggal untuk melihat data lengkap.
             </div>
@@ -190,13 +198,16 @@ function exportCsv() {
 
             <template v-else>
                 <div class="stat-grid" style="margin-bottom:20px">
-                    <div v-for="(mode, i) in result.modes" :key="mode" class="stat-card">
+                    <motion.div
+                        v-for="(mode, i) in result.modes" :key="mode" class="stat-card"
+                        :initial="{ opacity: 0, y: 12 }" :animate="{ opacity: 1, y: 0 }" :transition="{ delay: i * 0.05, duration: 0.3 }"
+                    >
                         <div class="stat-icon" :style="{ background: modeSummary(mode, i).color + '1A', color: modeSummary(mode, i).color }"><i class="fas fa-money-check-alt"></i></div>
                         <div>
                             <div class="stat-value money" :style="{ color: modeSummary(mode, i).color }">{{ fmt(modeSummary(mode, i).total) }}</div>
                             <div class="stat-label">{{ mode }} · {{ Number(modeSummary(mode, i).count).toLocaleString('id-ID') }} pmt · {{ modeSummary(mode, i).pct.toFixed(1) }}%</div>
                         </div>
-                    </div>
+                    </motion.div>
                 </div>
 
                 <div class="card">
@@ -282,6 +293,11 @@ function exportCsv() {
                     </div>
                 </div>
             </template>
-        </template>
+        </motion.div>
     </AppLayout>
 </template>
+
+<style scoped>
+.report-result { transition: opacity .2s ease; }
+.report-result.is-refetching { opacity: .5; pointer-events: none; }
+</style>
