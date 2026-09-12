@@ -1,6 +1,7 @@
 <script setup>
 import { reactive, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
+import { motion } from 'motion-v';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
@@ -107,24 +108,24 @@ async function checkErp(order) {
         </div>
 
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px">
-            <div class="card"><div class="card-body">
+            <motion.div class="card" :initial="{ opacity: 0, y: 12 }" :animate="{ opacity: 1, y: 0 }" :transition="{ delay: 0.05, duration: 0.3 }"><div class="card-body">
                 <div class="text-muted text-xs" style="text-transform:uppercase;letter-spacing:.5px">Total Penjualan</div>
                 <div style="font-size:22px;font-weight:800">{{ rupiah(summary.total_sales) }}</div>
                 <div class="text-muted text-xs">{{ summary.count }} order</div>
-            </div></div>
-            <div class="card"><div class="card-body">
+            </div></motion.div>
+            <motion.div class="card" :initial="{ opacity: 0, y: 12 }" :animate="{ opacity: 1, y: 0 }" :transition="{ delay: 0.1, duration: 0.3 }"><div class="card-body">
                 <div class="text-muted text-xs" style="text-transform:uppercase;letter-spacing:.5px">Sudah Dibayar</div>
                 <div style="font-size:22px;font-weight:800;color:var(--green)">{{ rupiah(summary.total_paid) }}</div>
-            </div></div>
-            <div class="card"><div class="card-body">
+            </div></motion.div>
+            <motion.div class="card" :initial="{ opacity: 0, y: 12 }" :animate="{ opacity: 1, y: 0 }" :transition="{ delay: 0.15, duration: 0.3 }"><div class="card-body">
                 <div class="text-muted text-xs" style="text-transform:uppercase;letter-spacing:.5px">Outstanding (Piutang)</div>
                 <div style="font-size:22px;font-weight:800" :style="{ color: summary.total_outstanding > 0 ? 'var(--red)' : 'var(--green)' }">{{ rupiah(summary.total_outstanding) }}</div>
-            </div></div>
-            <div class="card"><div class="card-body">
+            </div></motion.div>
+            <motion.div class="card" :initial="{ opacity: 0, y: 12 }" :animate="{ opacity: 1, y: 0 }" :transition="{ delay: 0.2, duration: 0.3 }"><div class="card-body">
                 <div class="text-muted text-xs" style="text-transform:uppercase;letter-spacing:.5px">Invoice HPY Terbit</div>
                 <div style="font-size:22px;font-weight:800;color:var(--blue)">{{ summary.with_invoice }} / {{ summary.count }}</div>
                 <div class="text-muted text-xs">DO dengan Sales Invoice</div>
-            </div></div>
+            </div></motion.div>
         </div>
 
         <div class="card">
@@ -161,6 +162,7 @@ async function checkErp(order) {
                             </tr>
                             <tr v-if="openRow === o.id" style="background:#f8fafc">
                                 <td colspan="10" style="padding:16px 20px">
+                                    <motion.div :key="o.id" :initial="{ opacity: 0, y: -6 }" :animate="{ opacity: 1, y: 0 }" :transition="{ duration: 0.2 }">
                                     <div v-if="erpData[o.id]?.loading" style="color:#5F6368"><i class="fas fa-spinner fa-spin"></i> Mengambil data dari ERP HPY...</div>
                                     <div v-else-if="erpData[o.id]?.error" style="color:#dc2626"><i class="fas fa-exclamation-triangle"></i> {{ erpData[o.id].error }}</div>
                                     <div v-else-if="erpData[o.id]?.data">
@@ -201,6 +203,7 @@ async function checkErp(order) {
                                         </div>
                                         <div v-else style="color:#6b7280;font-size:13px">Belum ada Payment Entry — pembayaran belum tersinkron ke HPY.</div>
                                     </div>
+                                    </motion.div>
                                 </td>
                             </tr>
                         </template>
