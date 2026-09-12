@@ -12,7 +12,10 @@ const props = defineProps({
     detailUrlBase: String,
 });
 
-const PAY_COLORS = ['#4285F4', '#34A853', '#FBBC04', '#EA4335', '#A142F4', '#00ACC1', '#FF7043', '#9E9E9E'];
+// Validated categorical palette (fixed order — CVD-safe adjacent pairs).
+// See the dataviz skill's references/palette.md. Never cycle past 8; a 9th
+// series should fold into "Other" instead of reusing a slot.
+const PAY_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
 
 function fmt(n) {
     return 'Rp ' + Number(n || 0).toLocaleString('id-ID', { minimumFractionDigits: 0 });
@@ -108,42 +111,27 @@ async function renderCharts(stats) {
     const Chart = await loadChartJs();
     const daily = stats.daily_data;
 
-    const labels = Object.keys(daily).map((d) => new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' }));
-    const totals = Object.values(daily).map((v) => v.total);
-    const counts = Object.values(daily).map((v) => v.count);
+    const dates = Object.keys(daily);
+    const labels = dates.map((d) => new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' }));
+    const totals = dates.map((d) => daily[d].total);
+    const counts = dates.map((d) => daily[d].count); // shown in tooltip only — never a second axis
 
     dailyChartInstance.value?.destroy();
     dailyChartInstance.value = new Chart(dailyChartCanvas.value, {
-        type: 'bar',
+        type: 'line',
         data: {
             labels,
-            datasets: [
-                { label: 'Penjualan', data: totals, backgroundColor: '#4285F4', borderRadius: 5, borderSkipped: false, yAxisID: 'y' },
-                { label: 'Transaksi', data: counts, type: 'line', borderColor: '#34A853', backgroundColor: 'rgba(52,168,83,.12)', pointBackgroundColor: '#34A853', tension: 0.3, yAxisID: 'y2' },
-            ],
-        },
-        options: {
-            responsive: true,
-            interaction: { mode: 'index' },
-            plugins: {
-                legend: { position: 'top' },
-                tooltip: { callbacks: { label: (ctx) => ctx.dataset.label === 'Penjualan' ? 'Penjualan: ' + fmt(ctx.raw) : 'Transaksi: ' + ctx.raw } },
-            },
-            scales: {
-                y: { ticks: { callback: (v) => 'Rp ' + (v / 1000).toFixed(0) + 'k' }, grid: { color: '#F1F3F4' } },
-                y2: { position: 'right', grid: { display: false }, ticks: { precision: 0 } },
-                x: { grid: { display: false } },
-            },
-        },
-    });
-
-    const rows = stats.payment_data || [];
-    paymentChartInstance.value?.destroy();
-    paymentChartInstance.value = new Chart(paymentChartCanvas.value, {
-        type: 'doughnut',
-        data: {
-            labels: rows.map((r) => r.mode_of_payment),
-            datasets: [{ data: rows.map((r) => r.total), backgroundColor: rows.map((_, i) => PAY_COLORS[i % PAY_COLORS.length]), borderWidth: 2, borderColor: '#fff' }],
+            datasets: [{
+                label: 'Penjualan',
+                data: totals,
+                borderColor: PAY_COLORS[0],
+                backgroundColor: 'rgba(42,120,214,.2)',
+                pointBackgroundColor: PAY_COLORS[0],
+                pointRadius: 3,
+                borderWidth: 2,
+                tension: 0.35,
+                fill: true,
+            }],
         },
         options: {
             responsive: true,
@@ -151,15 +139,48 @@ async function renderCharts(stats) {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
+                        label: (ctx) => 'Penjualan: ' + fmt(ctx.raw),
+                        afterLabel: (ctx) => 'Transaksi: ' + counts[ctx.dataIndex].toLocaleString('id-ID'),
+                    },
+                },
+            },
+            scales: {
+                y: { ticks: { callback: (v) => 'Rp ' + (v / 1000).toFixed(0) + 'k' }, grid: { color: '#F1F3F4' } },
+                x: { grid: { display: false } },
+            },
+        },
+    });
+
+    // Part-to-whole comparisons read more reliably as a bar than a donut,
+    // especially when two modes are close in value — see dataviz anti-patterns.
+    const rows = stats.payment_data || [];
+    paymentChartInstance.value?.destroy();
+    paymentChartInstance.value = new Chart(paymentChartCanvas.value, {
+        type: 'bar',
+        data: {
+            labels: rows.map((r) => r.mode_of_payment),
+            datasets: [{ data: rows.map((r) => r.total), backgroundColor: rows.map((_, i) => PAY_COLORS[i % PAY_COLORS.length]), borderRadius: 4, borderSkipped: false }],
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
                         label: (ctx) => {
                             const total = ctx.dataset.data.reduce((s, v) => s + v, 0);
                             const pct = total > 0 ? (ctx.raw / total * 100).toFixed(1) : 0;
-                            return `${ctx.label}: ${fmt(ctx.raw)} (${pct}%)`;
+                            return `${fmt(ctx.raw)} (${pct}%)`;
                         },
                     },
                 },
             },
-            cutout: '60%',
+            scales: {
+                x: { ticks: { callback: (v) => 'Rp ' + (v / 1000).toFixed(0) + 'k' }, grid: { color: '#F1F3F4' } },
+                y: { grid: { display: false } },
+            },
         },
     });
 }
@@ -291,9 +312,9 @@ async function openDetail(name) {
 
             <div class="card" style="margin-bottom:20px">
                 <div class="card-header"><div class="card-title"><i class="fas fa-wallet text-blue"></i> Metode Pembayaran</div></div>
-                <div class="card-body" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:24px;align-items:center">
-                    <div style="max-width:260px;margin:0 auto;width:100%"><canvas ref="paymentChartCanvas"></canvas></div>
-                    <div class="table-wrap">
+                <div class="card-body">
+                    <div :style="{ height: Math.max(120, paymentRowsWithPct.rows.length * 40) + 'px' }"><canvas ref="paymentChartCanvas"></canvas></div>
+                    <div class="table-wrap" style="margin-top:20px">
                         <table>
                             <thead><tr><th>Metode</th><th style="text-align:right">Transaksi</th><th style="text-align:right">Total</th><th style="text-align:right">%</th></tr></thead>
                             <tbody>
