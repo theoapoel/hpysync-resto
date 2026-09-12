@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref, shallowRef } from 'vue';
 import { Head } from '@inertiajs/vue3';
+import { AnimatePresence, motion } from 'motion-v';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { loadChartJs } from '@/loadChartJs';
 
@@ -76,7 +77,9 @@ async function fetchReport() {
     }
     loading.value = true;
     error.value = '';
-    result.value = null;
+    // Keep the previous result visible (dimmed via .is-refetching) while the
+    // new one loads instead of clearing it — an empty flash mid-refetch reads
+    // as broken, not as "loading".
 
     try {
         const resp = await fetch(props.fetchUrl, {
@@ -95,6 +98,7 @@ async function fetchReport() {
         await renderCharts(json.stats);
     } catch (e) {
         error.value = e.message;
+        result.value = null;
     } finally {
         loading.value = false;
     }
@@ -239,11 +243,18 @@ async function openDetail(name) {
             </div>
         </div>
 
-        <div v-if="error">
-            <div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
-        </div>
+        <AnimatePresence mode="wait">
+            <motion.div v-if="error" key="error" :initial="{ opacity: 0, y: -6 }" :animate="{ opacity: 1, y: 0 }" :exit="{ opacity: 0 }">
+                <div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
+            </motion.div>
+        </AnimatePresence>
 
-        <div v-if="result">
+        <motion.div
+            v-if="result"
+            class="report-result"
+            :class="{ 'is-refetching': loading }"
+            :initial="{ opacity: 0 }" :animate="{ opacity: 1 }" :transition="{ duration: 0.25 }"
+        >
             <div v-if="result.truncated" class="alert alert-warning">
                 <i class="fas fa-exclamation-triangle"></i>
                 Data terlalu banyak — <strong>tabel di bawah</strong> hanya menampilkan 1.000 transaksi pertama.
@@ -252,22 +263,22 @@ async function openDetail(name) {
             </div>
 
             <div class="stat-grid" style="margin-bottom:20px">
-                <div class="stat-card">
+                <motion.div class="stat-card" :initial="{ opacity: 0, y: 12 }" :animate="{ opacity: 1, y: 0 }" :transition="{ delay: 0.05, duration: 0.3 }">
                     <div class="stat-icon blue"><i class="fas fa-receipt"></i></div>
                     <div><div class="stat-value text-blue">{{ result.stats.total_count.toLocaleString('id-ID') }}</div><div class="stat-label">Total Transaksi</div></div>
-                </div>
-                <div class="stat-card">
+                </motion.div>
+                <motion.div class="stat-card" :initial="{ opacity: 0, y: 12 }" :animate="{ opacity: 1, y: 0 }" :transition="{ delay: 0.1, duration: 0.3 }">
                     <div class="stat-icon green"><i class="fas fa-money-bill-wave"></i></div>
                     <div><div class="stat-value text-green money">{{ fmt(result.stats.total_sales) }}</div><div class="stat-label">Total Penjualan</div></div>
-                </div>
-                <div class="stat-card">
+                </motion.div>
+                <motion.div class="stat-card" :initial="{ opacity: 0, y: 12 }" :animate="{ opacity: 1, y: 0 }" :transition="{ delay: 0.15, duration: 0.3 }">
                     <div class="stat-icon yellow"><i class="fas fa-calculator"></i></div>
                     <div><div class="stat-value money" style="color:#E37400">{{ fmt(result.stats.avg_per_tx) }}</div><div class="stat-label">Rata-rata per Transaksi</div></div>
-                </div>
-                <div class="stat-card">
+                </motion.div>
+                <motion.div class="stat-card" :initial="{ opacity: 0, y: 12 }" :animate="{ opacity: 1, y: 0 }" :transition="{ delay: 0.2, duration: 0.3 }">
                     <div class="stat-icon blue"><i class="fas fa-calendar-check"></i></div>
                     <div><div class="stat-value text-blue">{{ Object.keys(result.stats.daily_data).length }}</div><div class="stat-label">Hari dengan Transaksi</div></div>
-                </div>
+                </motion.div>
             </div>
 
             <div class="card" style="margin-bottom:20px">
@@ -346,10 +357,11 @@ async function openDetail(name) {
                     </table>
                 </div>
             </div>
-        </div>
+        </motion.div>
 
-        <div v-if="showDetail" class="modal-overlay show" @click.self="showDetail = false">
-            <div class="modal" style="max-width:680px">
+        <AnimatePresence>
+        <motion.div v-if="showDetail" class="modal-overlay show" :initial="{ opacity: 0 }" :animate="{ opacity: 1 }" :exit="{ opacity: 0 }" @click.self="showDetail = false">
+            <motion.div class="modal" style="max-width:680px" :initial="{ opacity: 0, y: -20, scale: 0.97 }" :animate="{ opacity: 1, y: 0, scale: 1 }">
                 <div class="modal-header">
                     <div class="modal-title">{{ detailName }}</div>
                     <button class="btn btn-ghost btn-sm" style="padding:4px 8px;border-radius:50%" @click="showDetail = false"><i class="fas fa-times"></i></button>
@@ -405,7 +417,13 @@ async function openDetail(name) {
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
+        </AnimatePresence>
     </AppLayout>
 </template>
+
+<style scoped>
+.report-result { transition: opacity .2s ease; }
+.report-result.is-refetching { opacity: .5; pointer-events: none; }
+</style>
