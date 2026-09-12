@@ -19,6 +19,12 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- .env's APP_URL includes the XAMPP subfolder path (/resto-pos/public) so
+             asset()/route() resolve correctly for real requests; Laravel's test HTTP
+             client dispatches in-memory against APP_URL's path too, so a path here
+             breaks every route match with a 404. Tests don't hit a real subfolder. -->
+        <env name="APP_URL" value="http://localhost"/>
+        <env name="ASSET_URL" value=""/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_STORE" value="array"/>
