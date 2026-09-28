@@ -8,6 +8,7 @@ use App\Models\DeliveryOrderItem;
 use App\Models\DeliveryShipment;
 use App\Models\Product;
 use App\Services\ErpNextService;
+use App\Services\ThermalPrintService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -287,6 +288,25 @@ class DeliveryOrderController extends Controller
         $deliveryOrder->update(['kitchen_scheduled_at' => $scheduledAt]);
 
         return back()->with('success', 'Jadwal produksi disimpan: ' . $scheduledAt->isoFormat('dddd, D MMMM Y HH:mm') . '.');
+    }
+
+    public function directPrintSlip(DeliveryOrder $deliveryOrder)
+    {
+        $deliveryOrder->load('items.product', 'customer', 'shipments');
+
+        try {
+            (new ThermalPrintService())->printDeliverySlip($deliveryOrder);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Slip berhasil dikirim ke printer.',
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function printSlip(DeliveryOrder $deliveryOrder)

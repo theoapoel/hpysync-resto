@@ -260,6 +260,7 @@ Route::middleware('auth')->group(function () {
 
         // Print slip (2 lembar: Gudang + QC)
         Route::get('/{deliveryOrder}/print-slip', [DeliveryOrderController::class, 'printSlip'])->name('print-slip');
+        Route::get('/{deliveryOrder}/direct-print-slip', [DeliveryOrderController::class, 'directPrintSlip'])->name('direct-print-slip');
 
         // Print Proforma Invoice & Invoice
         Route::get('/{deliveryOrder}/proforma', [DeliveryOrderController::class, 'printInvoice'])->defaults('type', 'proforma')->name('proforma');

@@ -100,6 +100,10 @@
                     <a href="{{ route('delivery-orders.print-slip', $order) }}" target="_blank" class="btn btn-ghost btn-sm" title="Print Slip">
                         <i class="fas fa-print"></i>
                     </a>
+                    <button type="button" class="btn btn-ghost btn-sm" title="Print Thermal (langsung ke printer)"
+                            onclick="thermalPrintSlip(this, '{{ route('delivery-orders.direct-print-slip', $order) }}')">
+                        <i class="fas fa-receipt"></i>
+                    </button>
                     <a href="{{ route('delivery-orders.proforma', $order) }}" target="_blank" class="btn btn-ghost btn-sm" title="Cetak Proforma Invoice">
                         <i class="fas fa-file-invoice"></i>
                     </a>
@@ -121,3 +125,27 @@
     @endif
 </div>
 @endsection
+
+@push('scripts')
+<script>
+function thermalPrintSlip(btn, url) {
+    const icon = btn.querySelector('i');
+    btn.disabled = true;
+    icon.className = 'fas fa-spinner fa-spin';
+
+    fetch(url)
+        .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || 'Gagal mencetak ke printer.');
+            }
+            alert(data.message || 'Slip berhasil dikirim ke printer.');
+        })
+        .catch((err) => alert('❌ ' + err.message))
+        .finally(() => {
+            btn.disabled = false;
+            icon.className = 'fas fa-receipt';
+        });
+}
+</script>
+@endpush

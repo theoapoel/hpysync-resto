@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DeliveryOrder;
 use App\Models\Setting;
 use App\Models\Transaction;
 use Mike42\Escpos\EscposImage;
@@ -31,6 +32,136 @@ class ThermalPrintService
         } finally {
             $printer->close();
         }
+    }
+
+    /**
+     * Cetak delivery slip (2 lembar: Gudang + QC) langsung ke thermal printer.
+     * Isi mengikuti view delivery-orders.print-slip.
+     *
+     * @throws \Exception jika printer tidak dapat dihubungi.
+     */
+    public function printDeliverySlip(DeliveryOrder $order): void
+    {
+        $connector = $this->makeConnector();
+        $printer   = new Printer($connector);
+        $printAt   = now()->format('d/m/Y H:i:s');
+
+        try {
+            $this->renderSlipGudang($printer, $order, $printAt);
+            $printer->cut();
+            $this->renderSlipQc($printer, $order, $printAt);
+            $printer->cut();
+        } finally {
+            $printer->close();
+        }
+    }
+
+    private function renderSlipGudang(Printer $printer, DeliveryOrder $order, string $printAt): void
+    {
+        $printer->setJustification(Printer::JUSTIFY_LEFT);
+        $printer->text($this->wrap('GUDANG - ' . $printAt));
+        $printer->feed();
+
+        // Nomor order besar & tebal, di tengah
+        $printer->setJustification(Printer::JUSTIFY_CENTER);
+        $printer->setEmphasis(true);
+        $printer->setTextSize(2, 2);
+        $printer->text(wordwrap($order->order_no, (int) floor(self::WIDTH / 2), "\n", true) . "\n");
+        $printer->setTextSize(1, 1);
+        $printer->setEmphasis(false);
+
+        $printer->text('Tanggal Order : ' . $this->orderDate($order) . "\n");
+        $printer->setEmphasis(true);
+        $printer->text($this->wrap($order->customer?->name ?? '-'));
+        $printer->setEmphasis(false);
+        if ($order->customer?->phone) {
+            $printer->text($this->wrap($order->customer->phone));
+        }
+        $printer->setJustification(Printer::JUSTIFY_LEFT);
+
+        $this->renderSlipItems($printer, $order);
+        $this->renderSlipShipments($printer, $order);
+        $printer->feed(2);
+    }
+
+    private function renderSlipQc(Printer $printer, DeliveryOrder $order, string $printAt): void
+    {
+        $printer->setJustification(Printer::JUSTIFY_LEFT);
+        $printer->text($this->wrap('QC - ' . $printAt));
+        $printer->feed();
+
+        $printer->text($this->twoCol('Nomor Order', 'Tgl Order'));
+        $printer->setEmphasis(true);
+        $printer->text($this->twoCol($order->order_no, $this->orderDate($order)));
+        $printer->text($this->wrap($order->customer?->name ?? '-'));
+        $printer->setEmphasis(false);
+        if ($order->customer?->phone) {
+            $printer->text($this->wrap($order->customer->phone));
+        }
+
+        // QR + ID padded
+        $printer->feed();
+        $printer->setJustification(Printer::JUSTIFY_CENTER);
+        $printer->qrCode($order->order_no, Printer::QR_ECLEVEL_M, 6);
+        $printer->setEmphasis(true);
+        $printer->setTextSize(2, 1);
+        $printer->text(str_pad((string) $order->id, 6, '0', STR_PAD_LEFT) . "\n");
+        $printer->setTextSize(1, 1);
+        $printer->setEmphasis(false);
+        $printer->setJustification(Printer::JUSTIFY_LEFT);
+
+        $this->renderSlipItems($printer, $order);
+        $this->renderSlipShipments($printer, $order);
+        $printer->feed(2);
+    }
+
+    private function renderSlipItems(Printer $printer, DeliveryOrder $order): void
+    {
+        $printer->text($this->divider());
+        $printer->setEmphasis(true);
+        $printer->text($this->twoCol('Barang', 'Qty'));
+        $printer->setEmphasis(false);
+        $printer->text($this->divider());
+
+        foreach ($order->items as $i => $item) {
+            $qty = rtrim(rtrim(number_format((float) $item->qty, 2, ',', ''), '0'), ',');
+            $printer->text($this->twoCol(($i + 1) . '. ' . $item->product_name, $qty));
+        }
+    }
+
+    private function renderSlipShipments(Printer $printer, DeliveryOrder $order): void
+    {
+        $shipments = $order->shipments->sortBy('sequence');
+        if ($shipments->isEmpty()) {
+            return;
+        }
+
+        $printer->text($this->divider());
+        $printer->setEmphasis(true);
+        $printer->text("TUJUAN PENGIRIMAN\n");
+        $printer->setEmphasis(false);
+
+        foreach ($shipments as $ship) {
+            $printer->setEmphasis(true);
+            $printer->text('Tujuan #' . $ship->sequence . "\n");
+            $name = $ship->recipient_name . ($ship->recipient_phone ? ' - ' . $ship->recipient_phone : '');
+            $printer->text($this->wrap($name));
+            $printer->setEmphasis(false);
+            if ($ship->shipping_address) {
+                $printer->text($this->wrap($ship->shipping_address));
+            }
+            if ($ship->delivery_date) {
+                $d = $ship->delivery_date->format('d/m/Y');
+                $t = $ship->delivery_date->format('H:i');
+                $printer->text('Kirim: ' . ($t !== '00:00' ? "$d $t" : $d) . "\n");
+            }
+            $printer->feed();
+        }
+    }
+
+    private function orderDate(DeliveryOrder $order): string
+    {
+        return ($order->order_date ?? $order->created_at)->format('d/m/Y');
     }
 
     /**

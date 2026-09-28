@@ -28,6 +28,10 @@
     <div style="display:flex;gap:8px;align-items:center">
         <span class="badge {{ $statusColor }}" style="font-size:13px;padding:6px 14px">{{ strtoupper($order->status) }}</span>
         <span class="badge {{ $payStatusColor }}" style="font-size:12px;padding:5px 12px"><i class="fas fa-money-bill-wave" style="margin-right:4px"></i>{{ $payStatusLabel }}</span>
+        <button type="button" id="thermalSlipBtn" class="btn btn-ghost" title="Kirim slip Gudang + QC langsung ke thermal printer"
+                onclick="thermalPrintSlip(this, '{{ route('delivery-orders.direct-print-slip', $order) }}')">
+            <i class="fas fa-receipt"></i> Print Thermal
+        </button>
         <a href="{{ route('delivery-orders.proforma', $order) }}" target="_blank" class="btn btn-ghost" title="Cetak Proforma Invoice">
             <i class="fas fa-file-invoice"></i> Proforma
         </a>
@@ -531,6 +535,26 @@
 
 @push('scripts')
 <script>
+function thermalPrintSlip(btn, url) {
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengirim…';
+
+    fetch(url)
+        .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || 'Gagal mencetak ke printer.');
+            }
+            alert(data.message || 'Slip berhasil dikirim ke printer.');
+        })
+        .catch((err) => alert('❌ ' + err.message))
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        });
+}
+
 async function syncSalesOrder() {
     const btn = document.getElementById('syncSoBtn');
     btn.disabled = true;

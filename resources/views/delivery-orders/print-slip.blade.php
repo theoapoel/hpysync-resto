@@ -118,6 +118,9 @@ body {
     <button onclick="window.print()" style="padding:8px 24px;font-size:14px;cursor:pointer;background:#1a73e8;color:#fff;border:none;border-radius:4px;margin-right:8px">
         🖨️ Print
     </button>
+    <button id="thermalBtn" onclick="directPrint()" style="padding:8px 24px;font-size:14px;cursor:pointer;background:#0F9D58;color:#fff;border:none;border-radius:4px;margin-right:8px">
+        🧾 Print Thermal
+    </button>
     <button onclick="window.close()" style="padding:8px 16px;font-size:14px;cursor:pointer;background:#f5f5f5;border:1px solid #ccc;border-radius:4px">
         Tutup
     </button>
@@ -245,6 +248,27 @@ function shipDate($ship) {
 </div>
 
 <script>
+function directPrint() {
+    const btn = document.getElementById('thermalBtn');
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Mengirim…';
+
+    fetch('{{ route('delivery-orders.direct-print-slip', $order) }}')
+        .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || 'Gagal mencetak ke printer.');
+            }
+            alert(data.message || 'Slip berhasil dikirim ke printer.');
+        })
+        .catch((err) => alert('❌ ' + err.message))
+        .finally(() => {
+            btn.disabled = false;
+            btn.textContent = original;
+        });
+}
+
 window.addEventListener('load', function () {
     setTimeout(function () { window.print(); }, 400);
 });
