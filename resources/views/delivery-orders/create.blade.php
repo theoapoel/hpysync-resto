@@ -376,6 +376,8 @@ function addShipItem(shipIdx, selectedName = '', qty = 1, price = 0) {
     const container = document.getElementById('ship-items-' + shipIdx);
     const items     = getOrderItems();
     const siIdx     = container.querySelectorAll('.ship-item-row-data').length;
+    // Baris yang dipulihkan (old input) sudah terpilih tanpa memicu onchange — isi SKU-nya di sini
+    const selectedSku = items.find(it => it.name === selectedName)?.sku || '';
 
     const opts = items.map(it =>
         `<option value="${it.name}" data-price="${it.price}" data-sku="${it.sku}" ${it.name===selectedName?'selected':''}>${it.name}</option>`
@@ -395,7 +397,7 @@ function addShipItem(shipIdx, selectedName = '', qty = 1, price = 0) {
         <button type="button" onclick="this.closest('.ship-item-row-data').remove(); updateSummary()" style="border:none;background:none;cursor:pointer;color:var(--red)">
             <i class="fas fa-times" style="font-size:12px"></i>
         </button>
-        <input type="hidden" name="shipments[${shipIdx}][items][${siIdx}][product_sku]" class="ship-item-sku" value="">
+        <input type="hidden" name="shipments[${shipIdx}][items][${siIdx}][product_sku]" class="ship-item-sku" value="${selectedSku}">
     `;
     container.appendChild(row);
     recalcShipItem(row.querySelector('input[type=number]'));

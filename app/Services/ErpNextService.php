@@ -1919,15 +1919,25 @@ class ErpNextService
             }
         }
 
-        $items = collect($shipment->items ?? [])->map(function ($item) use ($defaultWh, $soName, $soItemMap) {
+        // Item order per nama produk — sumber yang sama dengan payload Sales Order, jadi
+        // kode item DN dijamin sama dengan baris SO walau baris pengiriman tak membawa SKU.
+        $order->loadMissing('items.product');
+        $orderItemByName = $order->items->keyBy('product_name');
+
+        $items = collect($shipment->items ?? [])->map(function ($item) use ($defaultWh, $soName, $soItemMap, $orderItemByName) {
             // Resolve erp_item_code: prefer product lookup so it matches what was sent to the SO.
             // Shipment lama bisa tak menyimpan product_sku (form pengiriman hanya mengirim nama);
-            // jatuh ke pencarian nama supaya erp_item_code yang benar tetap dipakai — bukan
-            // nama produk yang dikirim sebagai item_code (ERP menolak: "Could not find Item Code").
-            $sku = $item['product_sku'] ?? null;
-            $product = $sku ? Product::where('sku', $sku)->first() : null;
+            // ambil dari item order bernama sama dulu. Pencarian nama produk hanya jalan terakhir:
+            // nama bisa kembar (kode ERP lama yang sudah disabled tetap tersimpan sebagai produk
+            // nonaktif), jadi produk aktif diutamakan — bukan sekadar baris pertama.
+            $orderItem = $orderItemByName->get($item['product_name'] ?? '');
+            $sku = ($item['product_sku'] ?? null) ?: $orderItem?->product_sku;
+            $product = ($sku ? Product::where('sku', $sku)->first() : null) ?? $orderItem?->product;
             if (! $product && ! empty($item['product_name'])) {
-                $product = Product::where('name', $item['product_name'])->first();
+                $product = Product::where('name', $item['product_name'])
+                    ->orderByDesc('is_active')
+                    ->orderByDesc('id')
+                    ->first();
             }
             $itemCode = $product?->erp_item_code ?: ($product?->sku ?: ($sku ?: $item['product_name']));
 
