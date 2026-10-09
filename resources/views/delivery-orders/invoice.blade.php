@@ -46,7 +46,9 @@
         <img src="{{ asset($store['store_logo']) }}" style="max-height:50px;max-width:200px;object-fit:contain">
     </div>
     @endif
-    <div class="center bold big">{{ $store['store_name'] ?: 'Toko' }}</div>
+    @if(!empty($store['store_name']))
+        <div class="center bold big">{{ $store['store_name'] }}</div>
+    @endif
     @if(!empty($store['store_tagline']))
         <div class="center sm">{{ $store['store_tagline'] }}</div>
     @endif
