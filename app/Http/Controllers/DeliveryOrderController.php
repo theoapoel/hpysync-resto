@@ -337,6 +337,31 @@ class DeliveryOrderController extends Controller
         ]);
     }
 
+    /**
+     * Kirim invoice / proforma langsung ke thermal printer (ESC/POS),
+     * sama seperti struk kasir.
+     */
+    public function directPrintInvoice(DeliveryOrder $deliveryOrder, string $type = 'invoice')
+    {
+        abort_unless(in_array($type, ['proforma', 'invoice']), 404);
+
+        $deliveryOrder->load('customer', 'items.product', 'payments');
+
+        try {
+            (new ThermalPrintService())->printInvoice($deliveryOrder, SettingsController::storeSettings(), $type);
+
+            return response()->json([
+                'success' => true,
+                'message' => ($type === 'proforma' ? 'Proforma' : 'Invoice') . ' berhasil dikirim ke printer.',
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function cancel(DeliveryOrder $deliveryOrder)
     {
         if (in_array($deliveryOrder->status, ['completed', 'cancelled'])) {

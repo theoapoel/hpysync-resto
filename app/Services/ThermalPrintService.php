@@ -56,6 +56,133 @@ class ThermalPrintService
         }
     }
 
+    /**
+     * Cetak invoice / proforma invoice Delivery Order sebagai struk thermal,
+     * mengikuti format struk kasir. Isi mengikuti view delivery-orders.invoice.
+     *
+     * @throws \Exception jika printer tidak dapat dihubungi.
+     */
+    public function printInvoice(DeliveryOrder $order, array $store, string $type = 'invoice'): void
+    {
+        $connector = $this->makeConnector();
+        $printer   = new Printer($connector);
+
+        try {
+            $this->renderInvoice($printer, $order, $store, $type);
+            $printer->cut();
+        } finally {
+            $printer->close();
+        }
+    }
+
+    private function renderInvoice(Printer $printer, DeliveryOrder $order, array $store, string $type): void
+    {
+        $isProforma = $type === 'proforma';
+        $docNo      = ($isProforma ? 'PI-' : 'INV-') . $order->order_no;
+
+        $this->renderStoreHeader($printer, $store);
+
+        // ── Judul dokumen ───────────────────────────
+        $printer->setJustification(Printer::JUSTIFY_CENTER);
+        $printer->setEmphasis(true);
+        $printer->text($isProforma ? "PROFORMA INVOICE\n" : "INVOICE\n");
+        $printer->setEmphasis(false);
+        $printer->text($docNo . "\n");
+        $printer->setJustification(Printer::JUSTIFY_LEFT);
+        $printer->text($this->divider());
+
+        // ── Info order ──────────────────────────────
+        $printer->text($this->twoCol('No. Order', $order->order_no));
+        $printer->text($this->twoCol('Tanggal', $this->orderDate($order)));
+        if ($order->delivery_date) {
+            $printer->text($this->twoCol('Tgl Kirim', $order->delivery_date->format('d/m/Y')));
+        }
+        if ($order->customer) {
+            $printer->text($this->twoCol('Customer', $order->customer->name));
+            if ($order->customer->phone) {
+                $printer->text($this->twoCol('Telp', $order->customer->phone));
+            }
+        }
+
+        $printer->text($this->divider());
+
+        // ── Items ───────────────────────────────────
+        foreach ($order->items as $item) {
+            $printer->text($this->wrap($item->product_name));
+            $qtyLine = $this->qty($item->qty) . ' x ' . $this->rp($item->price);
+            $printer->text($this->twoCol($qtyLine, $this->rp($item->subtotal)));
+        }
+
+        $printer->text($this->divider());
+
+        // ── Totals ──────────────────────────────────
+        $printer->text($this->twoCol('Total Qty', $this->qty($order->items->sum('qty'))));
+        $printer->text($this->twoCol('Subtotal', $this->rp($order->subtotal ?? $order->total)));
+        $printer->setEmphasis(true);
+        $printer->text($this->twoCol('TOTAL', $this->rp($order->total)));
+        $printer->setEmphasis(false);
+
+        if ($isProforma) {
+            $printer->text($this->divider());
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->text($this->wrap('Proforma invoice (estimasi tagihan), bukan bukti pembayaran yang sah.'));
+            $printer->setJustification(Printer::JUSTIFY_LEFT);
+        } else {
+            $totalPaid   = (float) $order->payments->sum('amount');
+            $outstanding = max(0, (float) $order->total - $totalPaid);
+
+            $printer->text($this->twoCol('Dibayar', $this->rp($totalPaid)));
+            $printer->setEmphasis(true);
+            $printer->text($this->twoCol('Sisa Tagihan', $this->rp($outstanding)));
+            $printer->setEmphasis(false);
+
+            $printer->text($this->divider());
+
+            $statusLabel = match ($order->payment_status) {
+                'paid'    => 'LUNAS',
+                'partial' => 'DP / SEBAGIAN',
+                default   => 'BELUM LUNAS',
+            };
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->setEmphasis(true);
+            $printer->setTextSize(2, 1);
+            $printer->text($statusLabel . "\n");
+            $printer->setTextSize(1, 1);
+            $printer->setEmphasis(false);
+            $printer->setJustification(Printer::JUSTIFY_LEFT);
+
+            if ($order->payments->isNotEmpty()) {
+                $printer->text($this->divider());
+                $printer->setEmphasis(true);
+                $printer->text("RIWAYAT PEMBAYARAN\n");
+                $printer->setEmphasis(false);
+                foreach ($order->payments as $pmt) {
+                    // Metode + nominal di baris pertama; tanggal & referensi di baris kedua
+                    // supaya nama metode (mis. "Transfer Bank") tidak terpotong di 32 kolom.
+                    $printer->text($this->twoCol($pmt->methodLabel(), $this->rp($pmt->amount)));
+                    $meta = $pmt->payment_date?->format('d/m/Y') ?? '-';
+                    if ($pmt->reference_no) {
+                        $meta .= ' Ref: ' . $pmt->reference_no;
+                    }
+                    $printer->text($this->wrap('  ' . $meta));
+                }
+            }
+        }
+
+        $printer->text($this->divider());
+
+        // ── Footer ──────────────────────────────────
+        $printer->setJustification(Printer::JUSTIFY_CENTER);
+        if (!empty($store['receipt_footer'])) {
+            $printer->feed();
+            $printer->text($this->wrap($store['receipt_footer']));
+        }
+        $printer->text('Dicetak ' . now()->format('d/m/Y H:i') . "\n");
+        $printer->feed();
+        $printer->text("Powered by HPY Solution\n");
+        $printer->feed();
+    }
+
     private function renderSlipGudang(Printer $printer, DeliveryOrder $order, string $printAt): void
     {
         $printer->setJustification(Printer::JUSTIFY_LEFT);
@@ -198,9 +325,9 @@ class ThermalPrintService
         }
     }
 
-    private function render(Printer $printer, Transaction $transaction, array $store): void
+    /** Header toko (logo, nama, tagline, alamat, telp, email) + garis pemisah. */
+    private function renderStoreHeader(Printer $printer, array $store): void
     {
-        // ── Header toko ─────────────────────────────
         $printer->setJustification(Printer::JUSTIFY_CENTER);
 
         $this->printLogo($printer, $store);
@@ -222,6 +349,11 @@ class ThermalPrintService
 
         $printer->setJustification(Printer::JUSTIFY_LEFT);
         $printer->text($this->divider());
+    }
+
+    private function render(Printer $printer, Transaction $transaction, array $store): void
+    {
+        $this->renderStoreHeader($printer, $store);
 
         // ── Info transaksi ──────────────────────────
         $printer->text($this->twoCol('Invoice', $transaction->invoice_no));
@@ -345,6 +477,12 @@ class ThermalPrintService
                 @unlink($tmp);
             }
         }
+    }
+
+    /** Format qty tanpa nol di belakang koma: 2, 1,5, 0,25. */
+    private function qty($qty): string
+    {
+        return rtrim(rtrim(number_format((float) $qty, 2, ',', ''), '0'), ',');
     }
 
     /** Format angka jadi "Rp 1.000". */

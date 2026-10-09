@@ -262,9 +262,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/{deliveryOrder}/print-slip', [DeliveryOrderController::class, 'printSlip'])->name('print-slip');
         Route::get('/{deliveryOrder}/direct-print-slip', [DeliveryOrderController::class, 'directPrintSlip'])->name('direct-print-slip');
 
-        // Print Proforma Invoice & Invoice
+        // Print Proforma Invoice & Invoice (struk 58mm, browser + thermal langsung)
         Route::get('/{deliveryOrder}/proforma', [DeliveryOrderController::class, 'printInvoice'])->defaults('type', 'proforma')->name('proforma');
         Route::get('/{deliveryOrder}/invoice', [DeliveryOrderController::class, 'printInvoice'])->defaults('type', 'invoice')->name('invoice');
+        Route::get('/{deliveryOrder}/direct-print-proforma', [DeliveryOrderController::class, 'directPrintInvoice'])->defaults('type', 'proforma')->name('direct-print-proforma');
+        Route::get('/{deliveryOrder}/direct-print-invoice', [DeliveryOrderController::class, 'directPrintInvoice'])->defaults('type', 'invoice')->name('direct-print-invoice');
     });
 
     // Delivery Notes (Shipments)
