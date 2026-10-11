@@ -33,7 +33,8 @@ if (! function_exists('pos_payment_methods')) {
      * Field `type` dari POS Profile ERP sering tidak terisi sehingga semua
      * metode jatuh ke default 'General' — termasuk CASH. Karena itu nama
      * metode ikut diperiksa agar tunai tetap dikenali dan kolom "Nominal
-     * Bayar" muncul sebagaimana mestinya.
+     * Bayar" muncul sebagaimana mestinya. Kata "kas" ikut dikenali karena
+     * toko sering menamai mode tunainya "KAS STORE", "Kas Kecil", dsb.
      */
     function pos_payment_methods(): array
     {
@@ -42,7 +43,7 @@ if (! function_exists('pos_payment_methods')) {
         foreach ($methods as $i => $m) {
             $name = $m['mode_of_payment'] ?? '';
             $methods[$i]['is_cash'] = ($m['type'] ?? '') === 'Cash'
-                || (bool) preg_match('/(^|[^a-z])(cash|tunai)([^a-z]|$)/i', $name);
+                || (bool) preg_match('/(^|[^a-z])(cash|tunai|kas)([^a-z]|$)/i', $name);
         }
 
         return array_values($methods);

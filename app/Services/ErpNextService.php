@@ -1289,9 +1289,14 @@ class ErpNextService
             $data = json_decode($response->getBody()->getContents(), true);
             $payments = $data['data']['payments'] ?? [];
 
+            // Baris `payments` di POS Profile tidak membawa `type`; nilai itu ada di
+            // master Mode of Payment. Tanpa ini mode tunai bernama bebas (mis.
+            // "KAS STORE") jatuh ke 'General' dan kolom Nominal Bayar tidak muncul.
+            $typeByName = $this->fetchModeOfPaymentTypes();
+
             $methods = collect($payments)->map(fn ($p) => [
                 'mode_of_payment' => $p['mode_of_payment'],
-                'type' => $p['type'] ?? 'General',
+                'type' => $typeByName[$p['mode_of_payment']] ?? ($p['type'] ?? 'General'),
             ])->values()->toArray();
 
             Setting::set('pos_payment_methods', json_encode($methods), 'erpnext');
@@ -2485,6 +2490,33 @@ class ErpNextService
     // =========================================================
 
     /** Nama-nama Mode of Payment bertipe Cash (untuk perlakuan kembalian). */
+    /** Peta nama Mode of Payment => type (Cash/Bank/General). Kosong bila gagal. */
+    public function fetchModeOfPaymentTypes(): array
+    {
+        try {
+            $resp = $this->client->get('/api/resource/Mode of Payment', [
+                'query' => [
+                    'fields' => json_encode(['name', 'type']),
+                    'limit_page_length' => 0,
+                ],
+            ]);
+            $data = json_decode($resp->getBody()->getContents(), true)['data'] ?? [];
+
+            $map = [];
+            foreach ($data as $row) {
+                if (! empty($row['name'])) {
+                    $map[$row['name']] = $row['type'] ?? 'General';
+                }
+            }
+
+            return $map;
+        } catch (\Throwable $e) {
+            Log::warning('fetchModeOfPaymentTypes gagal: '.$e->getMessage());
+
+            return [];
+        }
+    }
+
     public function getCashModeNames(): array
     {
         try {
