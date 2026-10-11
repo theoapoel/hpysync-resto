@@ -716,8 +716,11 @@
 // ============================================================
 let cart = [];
 let selectedCustomer = null;
-let selectedPayment = 'cash';
-let selectedPaymentIsCash = true;
+// Ikuti tombol pertama dari HPYERP (yang tampil aktif tanpa diklik). Nilai tetap
+// 'cash' pernah terkirim apa adanya saat kasir tidak mengklik tombol tunai —
+// invoice lalu gagal sync karena Mode of Payment "Cash" tidak ada di HPYERP.
+let selectedPayment = @json($posPaymentMethods[0]['mode_of_payment'] ?? 'cash');
+let selectedPaymentIsCash = @json($defaultIsCash);
 let selectedOrderType = 'dine_in';
 let selectedDeliveryPlatform = null;
 let allProducts = [];
