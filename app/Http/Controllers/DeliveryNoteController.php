@@ -14,11 +14,12 @@ class DeliveryNoteController extends Controller
     {
         $query = DeliveryShipment::with('order.customer')
             ->whereHas('order', fn($q) => $q->whereNotIn('status', ['cancelled']))
-            ->orderBy(
+            ->orderByDesc(
                 DeliveryOrder::select('delivery_date')
                     ->whereColumn('delivery_orders.id', 'delivery_shipments.delivery_order_id')
                     ->limit(1)
-            );
+            )
+            ->orderByDesc('delivery_shipments.id');
 
         if ($request->date) {
             $query->whereHas('order', fn($q) => $q->whereDate('delivery_date', $request->date));
