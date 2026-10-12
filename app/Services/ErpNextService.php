@@ -1964,11 +1964,27 @@ class ErpNextService
             return $row;
         })->filter(fn ($i) => $i['qty'] > 0)->values()->toArray();
 
+        // Posting date mengikuti tanggal kirim shipment, bukan saat tombol sync ditekan.
+        // Tanpa set_posting_time=1 HPYERP mengabaikan posting_date dan memakai jam
+        // simpan/submit — DN yang tertahan draft lalu disubmit belakangan ikut bergeser
+        // tanggalnya. Transaksi stok tidak boleh bertanggal depan, jadi dibatasi hari ini.
+        $now = $this->localNow();
+        $postingAt = $now;
+        if ($shipment->delivery_date) {
+            $shipAt = $this->toLocal($shipment->delivery_date);
+            if ($shipAt->format('H:i') === '00:00') {
+                $shipAt = $shipAt->setTime(12, 0); // jam kirim tidak diisi: anggap tengah hari
+            }
+            $postingAt = $shipAt->min($now);
+        }
+
         $payload = [
             'doctype' => 'Delivery Note',
             'naming_series' => $namingSeries,
             'customer' => $customer,
-            'posting_date' => $this->localNow()->format('Y-m-d'),
+            'posting_date' => $postingAt->format('Y-m-d'),
+            'posting_time' => $postingAt->format('H:i:s'),
+            'set_posting_time' => 1,
             'company' => $company,
             'currency' => $currency,
             'conversion_rate' => 1,
