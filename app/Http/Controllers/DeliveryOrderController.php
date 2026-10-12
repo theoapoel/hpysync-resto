@@ -63,7 +63,9 @@ class DeliveryOrderController extends Controller
             'shipments.*.recipient_phone'    => 'nullable|string|max:30',
             'shipments.*.shipping_address'   => 'required|string|max:500',
             'shipments.*.delivery_date'      => 'required|date',
-            'shipments.*.delivery_hour'      => 'nullable|integer|between:0,23',
+            // Jam dikirim form sebagai "08"; aturan `integer` menolak angka
+            // berawalan nol, sehingga jam 00–09 selalu gagal validasi.
+            'shipments.*.delivery_hour'      => 'nullable|numeric|between:0,23',
             'shipments.*.delivery_minute'    => 'nullable|in:00,05,10,15,20,25,30,35,40,45,50,55',
             'shipments.*.notes'              => 'nullable|string|max:500',
             'shipments.*.items'              => 'required|array|min:1',
