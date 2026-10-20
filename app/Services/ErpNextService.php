@@ -3462,12 +3462,41 @@ class ErpNextService
                 return ['success' => true, 'docname' => $slice->erp_stock_entry];
             }
 
-            return [
-                'success' => false,
-                'docname' => $slice->erp_stock_entry,
-                'error' => 'Stock Entry '.$slice->erp_stock_entry.' sudah dibuat di ERP HPY tapi belum tersubmit. '
-                    .'Selesaikan atau batalkan dokumen itu di ERP HPY — mengirim ulang dari sini akan menggandakan mutasi stok.',
-            ];
+            // Rekonsiliasi docstatus riil di ERP. Stock Entry yang tertinggal draft
+            // (submit gagal, mis. stok kurang) bisa saja sudah disubmit manual di ERP
+            // HPY. Dicek supaya HPYSync ikut sinkron, bukan terjebak "draft" selamanya —
+            // pola yang sama sudah dipakai alur Delivery Note (submitOrKeepDraftDeliveryNote).
+            $docStatus = $this->fetchDocStatus('Stock Entry', $slice->erp_stock_entry);
+
+            if ($docStatus === 1) {
+                // Sudah tersubmit di ERP → tandai selesai, jangan submit ulang.
+                $slice->update(['erp_sync_status' => 'synced', 'erp_sync_error' => null]);
+
+                return ['success' => true, 'docname' => $slice->erp_stock_entry];
+            }
+
+            if ($docStatus === 0) {
+                // Masih draft di ERP → selesaikan submit-nya (tanpa membuat dokumen baru).
+                try {
+                    $this->submitDoc('Stock Entry', $slice->erp_stock_entry);
+                } catch (RequestException $e) {
+                    $error = 'Stock Entry '.$slice->erp_stock_entry.' masih draft dan gagal disubmit: '.$this->extractError($e);
+                    $slice->update(['erp_sync_status' => 'failed', 'erp_sync_error' => $error]);
+
+                    return ['success' => false, 'docname' => $slice->erp_stock_entry, 'error' => $error];
+                }
+
+                $slice->update(['erp_sync_status' => 'synced', 'erp_sync_error' => null]);
+
+                return ['success' => true, 'docname' => $slice->erp_stock_entry];
+            }
+
+            // docstatus 2 (cancelled) atau tidak terbaca (null).
+            $msg = $docStatus === 2
+                ? 'Stock Entry '.$slice->erp_stock_entry.' sudah dibatalkan di ERP HPY. Batalkan repack ini atau buat ulang.'
+                : 'Stock Entry '.$slice->erp_stock_entry.' sudah dibuat di ERP HPY tapi statusnya tidak terbaca. Periksa di ERP HPY.';
+
+            return ['success' => false, 'docname' => $slice->erp_stock_entry, 'error' => $msg];
         }
 
         $company = Setting::get('erpnext_company', env('ERPNEXT_COMPANY', ''));
