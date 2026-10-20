@@ -3443,6 +3443,73 @@ class ErpNextService
     }
 
     // =========================================================
+    // REFRESH REPACK STATUS ← ERP HPY (hanya baca docstatus)
+    // Menyamakan status lokal slice dengan Stock Entry di ERP tanpa submit
+    // atau membuat dokumen baru. Dipakai tombol "Refresh Status" di detail Repack.
+    // =========================================================
+    public function refreshRepackStatus(Slice $slice): array
+    {
+        if (empty($slice->erp_stock_entry)) {
+            return ['success' => false, 'error' => 'Repack ini belum punya Stock Entry di ERP HPY. Gunakan Submit ke ERP.'];
+        }
+
+        $docStatus = $this->fetchDocStatus('Stock Entry', $slice->erp_stock_entry);
+        $name = $slice->erp_stock_entry;
+
+        if ($docStatus === 1) {
+            $changed = $slice->status !== 'submitted' || $slice->erp_sync_status !== 'synced';
+            $slice->update([
+                'status' => 'submitted',
+                'submitted_at' => $slice->submitted_at ?? now(),
+                'erp_sync_status' => 'synced',
+                'erp_sync_error' => null,
+            ]);
+
+            return [
+                'success' => true,
+                'docstatus' => 1,
+                'changed' => $changed,
+                'message' => $changed
+                    ? "Stock Entry {$name} sudah tersubmit di ERP HPY. Status repack diperbarui menjadi Submitted."
+                    : "Status sudah sesuai: Stock Entry {$name} tersubmit di ERP HPY.",
+            ];
+        }
+
+        if ($docStatus === 2) {
+            $changed = $slice->status !== 'cancelled';
+            $slice->update([
+                'status' => 'cancelled',
+                'erp_sync_status' => 'synced',
+                'erp_sync_error' => null,
+            ]);
+
+            return [
+                'success' => true,
+                'docstatus' => 2,
+                'changed' => $changed,
+                'message' => $changed
+                    ? "Stock Entry {$name} sudah dibatalkan di ERP HPY. Status repack diperbarui menjadi Dibatalkan."
+                    : "Status sudah sesuai: Stock Entry {$name} dibatalkan di ERP HPY.",
+            ];
+        }
+
+        if ($docStatus === 0) {
+            return [
+                'success' => true,
+                'docstatus' => 0,
+                'changed' => false,
+                'message' => "Stock Entry {$name} masih Draft di ERP HPY. Submit dokumen itu di ERP HPY, lalu refresh lagi; atau pakai Submit ke ERP dari sini.",
+            ];
+        }
+
+        return [
+            'success' => false,
+            'docstatus' => null,
+            'error' => "Stock Entry {$name} tidak terbaca di ERP HPY (mungkin sudah dihapus). Periksa di ERP HPY.",
+        ];
+    }
+
+    // =========================================================
     // CREATE REPACK ENTRY → ERPNext (Stock Entry, purpose = Repack)
     // Konversi 1 item (mis. Bolu) menjadi item lain (mis. Slice):
     // baris sumber = s_warehouse (diissue), baris hasil = t_warehouse (diterima).

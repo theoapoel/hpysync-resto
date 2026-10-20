@@ -154,6 +154,7 @@ class SliceController extends Controller
             'submitUrl' => route('slices.submit', $slice),
             'cancelUrl' => route('slices.cancel', $slice),
             'syncUrl' => route('slices.sync-erp', $slice),
+            'refreshUrl' => route('slices.refresh-status', $slice),
         ]);
     }
 
@@ -217,6 +218,22 @@ class SliceController extends Controller
         ]);
 
         return back()->with('success', 'Slice dibatalkan dan Stock Entry ERP dibatalkan.');
+    }
+
+    public function refreshStatus(Slice $slice)
+    {
+        $erp = new ErpNextService;
+        if (! $erp->isConfigured()) {
+            return back()->with('error', 'ERP HPY belum dikonfigurasi.');
+        }
+
+        $result = $erp->refreshRepackStatus($slice);
+
+        if (! $result['success']) {
+            return back()->with('error', $result['error'] ?? 'Gagal membaca status di ERP HPY.');
+        }
+
+        return back()->with('success', $result['message']);
     }
 
     public function syncErp(Slice $slice)

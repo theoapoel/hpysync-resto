@@ -297,6 +297,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/{slice}/submit', [SliceController::class, 'submit'])->name('submit');
         Route::post('/{slice}/cancel', [SliceController::class, 'cancel'])->name('cancel');
         Route::post('/{slice}/sync-erp', [SliceController::class, 'syncErp'])->name('sync-erp');
+        Route::post('/{slice}/refresh-status', [SliceController::class, 'refreshStatus'])->name('refresh-status');
     });
 
     // Rekap Order

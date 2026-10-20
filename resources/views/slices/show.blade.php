@@ -36,6 +36,14 @@
             </button>
         </form>
         @endif
+        @if($slice->erp_stock_entry && $slice->status !== 'cancelled')
+        <form method="POST" action="{{ route('slices.refresh-status', $slice) }}">
+            @csrf
+            <button type="submit" class="btn btn-outline" title="Baca ulang status Stock Entry di ERP HPY tanpa mengirim apa pun">
+                <i class="fas fa-rotate"></i> Refresh Status
+            </button>
+        </form>
+        @endif
         <a href="{{ route('slices.index') }}" class="btn btn-ghost">
             <i class="fas fa-arrow-left"></i> Kembali
         </a>
