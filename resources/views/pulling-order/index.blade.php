@@ -112,6 +112,9 @@
                     <td>
                         @if($row['type']==='delivery')
                             <span class="badge {{ $payColor }}">{{ $payLabel }}</span>
+                            @if(!empty($row['bill_as_receivable']))
+                                <span class="badge badge-blue" title="Tagih sebagai piutang (AR)">AR</span>
+                            @endif
                         @else
                             <span class="text-muted text-xs">—</span>
                         @endif

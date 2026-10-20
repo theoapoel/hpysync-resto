@@ -72,10 +72,23 @@
                     <textarea name="billing_address" id="billingAddress" class="form-control" rows="2"
                         placeholder="Alamat penagihan customer">{{ old('billing_address') }}</textarea>
                 </div>
-                <div class="form-group" style="margin-bottom:0">
+                <div class="form-group">
                     <label class="form-label">Catatan Order</label>
                     <input type="text" name="notes" class="form-control" placeholder="Catatan tambahan (opsional)" value="{{ old('notes') }}">
                 </div>
+                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 12px;background:var(--surface2);border-radius:8px;margin-bottom:0">
+                    <input type="hidden" name="bill_as_receivable" value="0">
+                    <input type="checkbox" name="bill_as_receivable" value="1" {{ old('bill_as_receivable') ? 'checked' : '' }}
+                        style="width:16px;height:16px;margin-top:2px;accent-color:var(--blue);cursor:pointer;flex-shrink:0">
+                    <span>
+                        <span style="display:block;font-size:13px;font-weight:600;color:var(--text2)">
+                            <i class="fas fa-file-invoice-dollar text-blue" style="margin-right:4px"></i>Tagih sebagai piutang (AR)
+                        </span>
+                        <span style="display:block;font-size:12px;color:var(--text3);margin-top:2px">
+                            Pembayaran boleh dilewati. Invoice HPYERP langsung terbit saat order dikonfirmasi dan tercatat sebagai piutang customer.
+                        </span>
+                    </span>
+                </label>
             </div>
         </div>
 

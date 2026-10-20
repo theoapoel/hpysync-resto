@@ -53,6 +53,7 @@ class PullingOrderController extends Controller
                     'paid' => $paid,
                     'outstanding' => max(0, (float) $order->total - $paid),
                     'payment_status' => $order->payment_status,
+                    'bill_as_receivable' => (bool) $order->bill_as_receivable,
                     'status' => $order->status,
                     'kitchen_scheduled_at' => $order->kitchen_scheduled_at,
                     'kitchen_confirmed_at' => $order->kitchen_confirmed_at,

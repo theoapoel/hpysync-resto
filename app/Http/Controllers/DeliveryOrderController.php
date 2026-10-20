@@ -54,6 +54,7 @@ class DeliveryOrderController extends Controller
             'order_date'                     => 'required|date',
             'billing_address'                => 'nullable|string|max:500',
             'notes'                          => 'nullable|string|max:1000',
+            'bill_as_receivable'             => 'nullable|boolean',
             'items'                          => 'required|array|min:1',
             'items.*.product_name'           => 'required|string',
             'items.*.qty'                    => 'required|numeric|min:0.01',
@@ -134,6 +135,7 @@ class DeliveryOrderController extends Controller
                 'delivery_date'        => $earliestDeliveryDate,
                 'kitchen_scheduled_at' => $earliestDeliveryDatetime,
                 'notes'                => $request->notes,
+                'bill_as_receivable'   => $request->boolean('bill_as_receivable'),
                 'status'               => 'draft',
                 'created_by'           => auth()->id(),
             ]);
@@ -235,12 +237,13 @@ class DeliveryOrderController extends Controller
                 if ($soResult['success']) {
                     $syncMsg = ' SO ERP: ' . ($soResult['docname'] ?? 'synced') . '.';
 
-                    // 2. Terbitkan Sales Invoice — hanya bila order sudah ada
-                    // pembayarannya. Order tanpa pembayaran tidak ditagihkan dulu
-                    // supaya tidak menumpuk piutang untuk order yang belum tentu jalan;
-                    // invoicenya menyusul saat pembayaran pertama masuk.
+                    // 2. Terbitkan Sales Invoice bila order sudah ada pembayarannya
+                    // ATAU ditandai "tagih sebagai piutang (AR)". Order biasa tanpa
+                    // pembayaran tidak ditagihkan dulu supaya tidak menumpuk piutang
+                    // untuk order yang belum tentu jalan; invoicenya menyusul saat
+                    // pembayaran pertama masuk.
                     $deliveryOrder->load('payments');
-                    if ($deliveryOrder->payments->isNotEmpty()) {
+                    if ($deliveryOrder->bill_as_receivable || $deliveryOrder->payments->isNotEmpty()) {
                         $siResult = $erp->createSalesInvoice($deliveryOrder);
                         $syncMsg .= $siResult['success']
                             ? ' Invoice ERP: ' . ($siResult['docname'] ?? 'synced') . '.'

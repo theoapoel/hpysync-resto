@@ -28,6 +28,9 @@
     <div style="display:flex;gap:8px;align-items:center">
         <span class="badge {{ $statusColor }}" style="font-size:13px;padding:6px 14px">{{ strtoupper($order->status) }}</span>
         <span class="badge {{ $payStatusColor }}" style="font-size:12px;padding:5px 12px"><i class="fas fa-money-bill-wave" style="margin-right:4px"></i>{{ $payStatusLabel }}</span>
+        @if($order->bill_as_receivable)
+        <span class="badge badge-blue" style="font-size:12px;padding:5px 12px" title="Invoice HPYERP terbit saat konfirmasi walau belum dibayar"><i class="fas fa-file-invoice-dollar" style="margin-right:4px"></i>Piutang (AR)</span>
+        @endif
         <button type="button" id="thermalSlipBtn" class="btn btn-ghost" title="Kirim slip Gudang + QC langsung ke thermal printer"
                 onclick="thermalPrintSlip(this, '{{ route('delivery-orders.direct-print-slip', $order) }}')">
             <i class="fas fa-receipt"></i> Print Thermal
@@ -474,6 +477,9 @@
                         <span class="badge badge-green">{{ $order->erp_sales_invoice }}</span>
                     @elseif($order->erp_si_sync_error)
                         <span class="badge badge-red">FAILED</span>
+                    @elseif($order->bill_as_receivable)
+                        {{-- Order AR: invoice terbit saat konfirmasi. --}}
+                        <span class="badge badge-gray">{{ $order->status === 'draft' ? 'TERBIT SAAT KONFIRMASI' : 'BELUM TERBIT' }}</span>
                     @else
                         {{-- Invoice sengaja ditahan sampai ada pembayaran pertama. --}}
                         <span class="badge badge-gray">MENUNGGU BAYAR</span>
