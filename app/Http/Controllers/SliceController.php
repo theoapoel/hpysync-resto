@@ -220,6 +220,60 @@ class SliceController extends Controller
         return back()->with('success', 'Slice dibatalkan dan Stock Entry ERP dibatalkan.');
     }
 
+    /**
+     * Refresh massal dari halaman daftar: semua slice yang sudah punya Stock Entry
+     * di ERP HPY tapi belum synced (atau masih draft lokal). Hanya baca docstatus.
+     */
+    public function refreshAllStatus()
+    {
+        $erp = new ErpNextService;
+        if (! $erp->isConfigured()) {
+            return back()->with('error', 'ERP HPY belum dikonfigurasi.');
+        }
+
+        $candidates = Slice::whereNotNull('erp_stock_entry')
+            ->where('erp_stock_entry', '!=', '')
+            ->where('status', '!=', 'cancelled')
+            ->where(function ($q) {
+                $q->where('erp_sync_status', '!=', 'synced')
+                    ->orWhereNull('erp_sync_status')
+                    ->orWhere('status', 'draft');
+            })
+            ->orderBy('id')
+            ->get();
+
+        if ($candidates->isEmpty()) {
+            return back()->with('success', 'Semua status Repack sudah sesuai dengan ERP HPY.');
+        }
+
+        // Satu panggilan API per slice; backlog ratusan slice jangan terpotong max_execution_time.
+        set_time_limit(300);
+
+        $updated = 0;
+        $unchanged = 0;
+        $stillDraft = 0;
+        $failed = 0;
+
+        foreach ($candidates as $slice) {
+            $result = $erp->refreshRepackStatus($slice);
+
+            if (empty($result['success'])) {
+                $failed++;
+            } elseif ($result['docstatus'] === 0) {
+                $stillDraft++;
+            } elseif (! empty($result['changed'])) {
+                $updated++;
+            } else {
+                $unchanged++;
+            }
+        }
+
+        $msg = "Refresh status selesai: {$candidates->count()} Repack dicek. "
+            ."Diperbarui: {$updated}, sudah sesuai: {$unchanged}, masih Draft di ERP HPY: {$stillDraft}, tidak terbaca: {$failed}.";
+
+        return back()->with($failed > 0 && $updated === 0 ? 'error' : 'success', $msg);
+    }
+
     public function refreshStatus(Slice $slice)
     {
         $erp = new ErpNextService;

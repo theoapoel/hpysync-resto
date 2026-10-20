@@ -7,9 +7,17 @@
         <div class="page-title"><i class="fas fa-scissors text-blue"></i> Repack</div>
         <div class="page-subtitle">Konversi qty item — mis. 1 Bolu dipotong menjadi 8 potong</div>
     </div>
-    <a href="{{ route('slices.create') }}" class="btn btn-primary">
-        <i class="fas fa-plus"></i> Buat Repack
-    </a>
+    <div style="display:flex;gap:8px">
+        <form method="POST" action="{{ route('slices.refresh-all') }}" onsubmit="this.querySelector('button').disabled=true;this.querySelector('i').classList.add('fa-spin')">
+            @csrf
+            <button type="submit" class="btn btn-outline" title="Baca ulang status semua Stock Entry Repack di ERP HPY yang belum sinkron, tanpa mengirim apa pun">
+                <i class="fas fa-rotate"></i> Refresh Semua Status
+            </button>
+        </form>
+        <a href="{{ route('slices.create') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Buat Repack
+        </a>
+    </div>
 </div>
 
 {{-- Filter --}}

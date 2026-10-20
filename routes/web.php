@@ -293,6 +293,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [SliceController::class, 'index'])->name('index');
         Route::get('/create', [SliceController::class, 'create'])->name('create');
         Route::post('/', [SliceController::class, 'store'])->name('store');
+        Route::post('/refresh-status', [SliceController::class, 'refreshAllStatus'])->name('refresh-all');
         Route::get('/{slice}', [SliceController::class, 'show'])->name('show');
         Route::post('/{slice}/submit', [SliceController::class, 'submit'])->name('submit');
         Route::post('/{slice}/cancel', [SliceController::class, 'cancel'])->name('cancel');
