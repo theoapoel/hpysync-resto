@@ -1,6 +1,6 @@
 <script setup>
 import { reactive } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
@@ -8,7 +8,13 @@ const props = defineProps({
     filters: Object,
     indexUrl: String,
     createUrl: String,
+    refreshAllUrl: String,
 });
+
+const refreshForm = useForm({});
+function doRefreshAll() {
+    refreshForm.post(props.refreshAllUrl, { preserveScroll: true });
+}
 
 const form = reactive({
     status: props.filters.status ?? '',
@@ -34,7 +40,12 @@ const statusBadge = { draft: 'badge-gray', submitted: 'badge-blue', cancelled: '
                 <div class="page-title"><i class="fas fa-scissors text-blue"></i> Repack</div>
                 <div class="page-subtitle">Konversi qty item — mis. 1 Bolu dipotong menjadi 8 potong</div>
             </div>
-            <Link :href="createUrl" class="btn btn-primary"><i class="fas fa-plus"></i> Buat Repack</Link>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-outline" :disabled="refreshForm.processing" title="Baca ulang status semua Stock Entry Repack di ERP HPY yang belum sinkron, tanpa mengirim apa pun" @click="doRefreshAll">
+                    <i class="fas fa-rotate" :class="{ 'fa-spin': refreshForm.processing }"></i> Refresh Semua Status
+                </button>
+                <Link :href="createUrl" class="btn btn-primary"><i class="fas fa-plus"></i> Buat Repack</Link>
+            </div>
         </div>
 
         <div class="card" style="margin-bottom:16px">

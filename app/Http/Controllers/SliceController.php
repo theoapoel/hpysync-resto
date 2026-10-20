@@ -52,6 +52,7 @@ class SliceController extends Controller
             'filters' => $request->only(['status', 'date_from', 'date_to', 'search']),
             'indexUrl' => route('slices.index'),
             'createUrl' => route('slices.create'),
+            'refreshAllUrl' => route('slices.refresh-all'),
         ]);
     }
 
