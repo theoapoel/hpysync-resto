@@ -9,6 +9,7 @@ const props = defineProps({
     submitUrl: String,
     cancelUrl: String,
     syncUrl: String,
+    refreshUrl: String,
 });
 
 const statusBadge = { draft: 'badge-gray', submitted: 'badge-blue', cancelled: 'badge-red' };
@@ -26,6 +27,11 @@ function doCancel() {
         : 'Batalkan repack ini?';
     if (!confirm(msg)) return;
     cancelForm.post(props.cancelUrl);
+}
+
+const refreshForm = useForm({});
+function doRefresh() {
+    refreshForm.post(props.refreshUrl, { preserveScroll: true });
 }
 
 const syncing = ref(false);
@@ -75,6 +81,9 @@ async function syncErp() {
                     </button>
                     <button class="btn btn-ghost" style="color:var(--red)" :disabled="cancelForm.processing" @click="doCancel"><i class="fas fa-times"></i> Batalkan</button>
                 </template>
+                <button v-if="slice.erp_stock_entry && slice.status !== 'cancelled'" class="btn btn-outline" :disabled="refreshForm.processing" title="Baca ulang status Stock Entry di ERP HPY tanpa mengirim apa pun" @click="doRefresh">
+                    <i class="fas fa-rotate" :class="{ 'fa-spin': refreshForm.processing }"></i> Refresh Status
+                </button>
                 <Link :href="indexUrl" class="btn btn-ghost"><i class="fas fa-arrow-left"></i> Kembali</Link>
             </div>
         </div>
