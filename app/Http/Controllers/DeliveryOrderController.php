@@ -107,7 +107,22 @@ class DeliveryOrderController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($request) {
+        // Harga hanya boleh diubah pada order AR. Order biasa selalu memakai harga
+        // produk saat ini, apa pun yang dikirim form. Item per tujuan mengikuti
+        // harga Item Order (dicocokkan per nama produk) supaya total selalu sinkron.
+        $billAsReceivable = $request->boolean('bill_as_receivable');
+        $productPrices = Product::whereIn('id', collect($request->items)->pluck('product_id')->filter())
+            ->pluck('price', 'id');
+        $orderItems = collect($request->items)->map(function ($row) use ($billAsReceivable, $productPrices) {
+            $pid = $row['product_id'] ?? null;
+            if (! $billAsReceivable && $pid && isset($productPrices[$pid])) {
+                $row['price'] = (float) $productPrices[$pid];
+            }
+            return $row;
+        })->values();
+        $priceByName = $orderItems->pluck('price', 'product_name');
+
+        DB::transaction(function () use ($request, $orderItems, $priceByName, $billAsReceivable) {
             // Set delivery_date on the order to the earliest shipment date (date only) for backward compat
             $earliestDeliveryDate = collect($request->shipments)
                 ->pluck('delivery_date')
@@ -135,12 +150,12 @@ class DeliveryOrderController extends Controller
                 'delivery_date'        => $earliestDeliveryDate,
                 'kitchen_scheduled_at' => $earliestDeliveryDatetime,
                 'notes'                => $request->notes,
-                'bill_as_receivable'   => $request->boolean('bill_as_receivable'),
+                'bill_as_receivable'   => $billAsReceivable,
                 'status'               => 'draft',
                 'created_by'           => auth()->id(),
             ]);
 
-            foreach ($request->items as $row) {
+            foreach ($orderItems as $row) {
                 $subtotal = $row['price'] * $row['qty'];
                 DeliveryOrderItem::create([
                     'delivery_order_id' => $order->id,
@@ -156,13 +171,17 @@ class DeliveryOrderController extends Controller
             $order->recalculateTotal();
 
             foreach ($request->shipments as $i => $ship) {
-                $shipItems = collect($ship['items'])->map(fn($si) => [
-                    'product_name' => $si['product_name'],
-                    'product_sku'  => $si['product_sku'] ?? null,
-                    'qty'          => (float)($si['qty'] ?? 0),
-                    'price'        => (float)($si['price'] ?? 0),
-                    'subtotal'     => (float)($si['price'] ?? 0) * (float)($si['qty'] ?? 0),
-                ])->filter(fn($si) => $si['qty'] > 0)->values()->toArray();
+                $shipItems = collect($ship['items'])->map(function ($si) use ($priceByName) {
+                    $price = (float) ($priceByName[$si['product_name']] ?? $si['price'] ?? 0);
+                    $qty   = (float) ($si['qty'] ?? 0);
+                    return [
+                        'product_name' => $si['product_name'],
+                        'product_sku'  => $si['product_sku'] ?? null,
+                        'qty'          => $qty,
+                        'price'        => $price,
+                        'subtotal'     => $price * $qty,
+                    ];
+                })->filter(fn($si) => $si['qty'] > 0)->values()->toArray();
 
                 $shipTotal = collect($shipItems)->sum('subtotal');
 

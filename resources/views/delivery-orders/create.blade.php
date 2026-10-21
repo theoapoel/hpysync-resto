@@ -13,7 +13,7 @@
 .do-search-dropdown.show { display:block; }
 .do-dd-item { display:grid; grid-template-columns:1fr auto; grid-template-areas:"name price" "meta price"; gap:0 12px; padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--border); }
 .do-dd-item:last-child { border-bottom:none; }
-.do-dd-item:hover { background:var(--surface2); }
+.do-dd-item:hover, .do-dd-item.active { background:var(--surface2); }
 .do-dd-name { grid-area:name; font-size:13px; font-weight:600; }
 .do-dd-meta { grid-area:meta; font-size:11px; color:var(--text3); }
 .do-dd-price { grid-area:price; align-self:center; font-size:13px; font-weight:700; color:var(--blue); white-space:nowrap; }
@@ -53,12 +53,16 @@
                 <div class="grid-2">
                     <div class="form-group">
                         <label class="form-label">Customer <span style="color:var(--red)">*</span></label>
-                        <select name="customer_id" id="customerSelect" class="form-control form-select" required onchange="fillBillingAddress(this)">
-                            <option value="">— Pilih Customer —</option>
-                            @foreach($customers as $c)
-                            <option value="{{ $c->id }}" data-address="{{ $c->address }}" {{ old('customer_id') == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
-                            @endforeach
-                        </select>
+                        <div style="position:relative" id="customerSearchWrap">
+                            <i class="fas fa-user" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px"></i>
+                            <input type="text" id="customerSearch" class="form-control" autocomplete="off"
+                                placeholder="Ketik nama / no. HP customer..." style="padding-left:34px;padding-right:32px"
+                                oninput="onCustomerSearch(this.value)" onfocus="onCustomerSearch(this.value)"
+                                onkeydown="onCustomerKeydown(event)">
+                            <i id="customerCheck" class="fas fa-check-circle" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--green);font-size:13px"></i>
+                            <input type="hidden" name="customer_id" id="customerId" value="{{ old('customer_id') }}">
+                            <div id="customerDropdown" class="do-search-dropdown"></div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Tanggal Pembuatan <span style="color:var(--red)">*</span></label>
@@ -78,7 +82,8 @@
                 </div>
                 <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 12px;background:var(--surface2);border-radius:8px;margin-bottom:0">
                     <input type="hidden" name="bill_as_receivable" value="0">
-                    <input type="checkbox" name="bill_as_receivable" value="1" {{ old('bill_as_receivable') ? 'checked' : '' }}
+                    <input type="checkbox" name="bill_as_receivable" id="billAsReceivable" value="1" {{ old('bill_as_receivable') ? 'checked' : '' }}
+                        onchange="toggleArPricing()"
                         style="width:16px;height:16px;margin-top:2px;accent-color:var(--blue);cursor:pointer;flex-shrink:0">
                     <span>
                         <span style="display:block;font-size:13px;font-weight:600;color:var(--text2)">
@@ -86,6 +91,7 @@
                         </span>
                         <span style="display:block;font-size:12px;color:var(--text3);margin-top:2px">
                             Pembayaran boleh dilewati. Invoice HPYERP langsung terbit saat order dikonfirmasi dan tercatat sebagai piutang customer.
+                            Harga item boleh diubah.
                         </span>
                     </span>
                 </label>
@@ -158,12 +164,14 @@
 
 {{-- Hidden: product data for JS --}}
 <script id="productData" type="application/json">@json($products)</script>
+<script id="customerData" type="application/json">@json($customers)</script>
 
 @endsection
 
 @push('scripts')
 <script>
 const products  = JSON.parse(document.getElementById('productData').textContent);
+const customers = JSON.parse(document.getElementById('customerData').textContent);
 const today     = new Date().toISOString().split('T')[0];
 const hourOptions   = Array.from({length:24}, (_,h) => `<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('');
 const minuteOptions = ['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => `<option value="${m}">${m}</option>`).join('');
@@ -172,18 +180,75 @@ let shipCount   = 0;
 
 function fmt(n) { return 'Rp ' + Number(n).toLocaleString('id-ID'); }
 
-// ── Customers ────────────────────────────────────────────────
-function fillBillingAddress(sel) {
-    const opt = sel.options[sel.selectedIndex];
-    document.getElementById('billingAddress').value = opt.dataset.address || '';
+// ── Customers (kotak ketik + saran, seperti pencarian item) ──
+let selectedCustomer = null;
+let customerMatches  = [];
+let customerActive   = -1;
+
+function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderCustomerDropdown() {
+    const dd = document.getElementById('customerDropdown');
+    if (!customerMatches.length) {
+        dd.innerHTML = '<div class="do-dd-empty">Customer tidak ditemukan</div>';
+    } else {
+        dd.innerHTML = customerMatches.map((c, i) =>
+            `<div class="do-dd-item${i === customerActive ? ' active' : ''}" onmousedown="selectCustomer(${c.id})">
+                <div class="do-dd-name">${escapeHtml(c.name)}</div>
+                <div class="do-dd-meta">${escapeHtml([c.phone, c.address].filter(Boolean).join(' · '))}</div>
+            </div>`
+        ).join('');
+    }
+    dd.classList.add('show');
+}
+
+function onCustomerSearch(term) {
+    const raw = (term || '').trim();
+    // Teks diubah setelah memilih → pilihan lama tidak berlaku lagi
+    if (selectedCustomer && raw !== selectedCustomer.name) setSelectedCustomer(null, false);
+    const q = raw.toLowerCase();
+    const dd = document.getElementById('customerDropdown');
+    if (!q) { dd.classList.remove('show'); dd.innerHTML = ''; customerMatches = []; return; }
+    customerMatches = customers.filter(c =>
+        (c.name && c.name.toLowerCase().includes(q)) ||
+        (c.phone && String(c.phone).toLowerCase().includes(q))
+    ).slice(0, 30);
+    customerActive = customerMatches.length ? 0 : -1;
+    renderCustomerDropdown();
+}
+
+function onCustomerKeydown(e) {
+    const dd = document.getElementById('customerDropdown');
+    if (!dd.classList.contains('show') || !customerMatches.length) return;
+    if (e.key === 'ArrowDown')      { e.preventDefault(); customerActive = (customerActive + 1) % customerMatches.length; renderCustomerDropdown(); }
+    else if (e.key === 'ArrowUp')   { e.preventDefault(); customerActive = (customerActive - 1 + customerMatches.length) % customerMatches.length; renderCustomerDropdown(); }
+    else if (e.key === 'Enter')     { e.preventDefault(); if (customerActive >= 0) selectCustomer(customerMatches[customerActive].id); }
+    else if (e.key === 'Escape')    { dd.classList.remove('show'); }
+}
+
+function setSelectedCustomer(c, fillAddress = true) {
+    selectedCustomer = c;
+    document.getElementById('customerId').value = c ? c.id : '';
+    document.getElementById('customerCheck').style.display = c ? '' : 'none';
+    if (c) {
+        document.getElementById('customerSearch').value = c.name;
+        if (fillAddress) document.getElementById('billingAddress').value = c.address || '';
+    }
     applyBuyerToShip0();
+}
+
+function selectCustomer(id) {
+    const c = customers.find(x => x.id === id);
+    if (!c) return;
+    setSelectedCustomer(c);
+    document.getElementById('customerDropdown').classList.remove('show');
 }
 
 // ── Tujuan 1: samakan nama & alamat dengan pembeli ───────────
 function currentBuyer() {
-    const sel  = document.getElementById('customerSelect');
-    const opt  = sel.options[sel.selectedIndex];
-    const name = (sel.value && opt) ? opt.text.trim() : '';
+    const name = selectedCustomer ? selectedCustomer.name : '';
     const addr = document.getElementById('billingAddress').value || '';
     return { name, addr };
 }
@@ -257,11 +322,53 @@ document.addEventListener('click', e => {
     if (!e.target.closest('#itemSearchWrap')) {
         document.getElementById('itemSearchDropdown')?.classList.remove('show');
     }
+    if (!e.target.closest('#customerSearchWrap')) {
+        document.getElementById('customerDropdown')?.classList.remove('show');
+    }
 });
+
+// ── Harga: hanya boleh diubah bila "Tagih sebagai piutang (AR)" dicentang ──
+function isArChecked() {
+    return !!document.getElementById('billAsReceivable')?.checked;
+}
+
+function applyPriceLock(input) {
+    const editable = isArChecked();
+    input.readOnly = !editable;
+    input.tabIndex = editable ? 0 : -1;
+    input.style.background = editable ? '' : 'var(--surface2)';
+    input.title = editable ? '' : 'Centang "Tagih sebagai piutang (AR)" untuk mengubah harga';
+}
+
+function toggleArPricing() {
+    const editable = isArChecked();
+    document.querySelectorAll('.item-row .item-price').forEach(input => {
+        // Kembalikan ke harga produk saat AR dimatikan lagi.
+        if (!editable && input.dataset.defaultPrice !== undefined) input.value = input.dataset.defaultPrice;
+        applyPriceLock(input);
+    });
+    recalcAll();
+}
+
+// Samakan harga item per tujuan dengan harga Item Order (dicocokkan per nama produk).
+function syncShipPrices() {
+    const priceByName = {};
+    getOrderItems().forEach(it => { priceByName[it.name] = it.price; });
+    document.querySelectorAll('.ship-item-row-data').forEach(row => {
+        const sel = row.querySelector('select');
+        [...sel.options].forEach(opt => { if (opt.value && priceByName[opt.value] !== undefined) opt.dataset.price = priceByName[opt.value]; });
+        if (sel.value && priceByName[sel.value] !== undefined) {
+            row.querySelector('.ship-item-price').value = priceByName[sel.value];
+            recalcShipItem(row.querySelector('input[type=number]'));
+        }
+    });
+}
 
 // ── Order Items ──────────────────────────────────────────────
 function addItem(name = '', sku = '', price = 0, qty = 1, pid = '') {
     const idx = itemCount++;
+    const product = products.find(x => String(x.id) === String(pid));
+    const defaultPrice = product ? (product.price || 0) : price;
 
     const row = document.createElement('div');
     row.className = 'item-row';
@@ -270,8 +377,8 @@ function addItem(name = '', sku = '', price = 0, qty = 1, pid = '') {
         <div class="item-product-name" title="${name}" style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name || '—'}</div>
         <input type="number" name="items[${idx}][qty]" class="form-control item-qty" value="${qty}"
             min="0.01" step="0.01" style="text-align:right;font-size:13px" oninput="recalcItem(${idx})">
-        <input type="number" name="items[${idx}][price]" class="form-control item-price" value="${price}"
-            min="0" step="1" readonly style="text-align:right;font-size:13px;background:var(--surface2)" tabindex="-1">
+        <input type="number" name="items[${idx}][price]" class="form-control item-price" value="${price}" data-default-price="${defaultPrice}"
+            min="0" step="1" style="text-align:right;font-size:13px" oninput="recalcItem(${idx})">
         <input type="text" class="form-control item-subtotal" readonly style="text-align:right;font-size:13px;background:var(--surface2)">
         <button type="button" onclick="this.closest('.item-row').remove(); recalcAll()" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:16px">
             <i class="fas fa-times"></i>
@@ -281,6 +388,7 @@ function addItem(name = '', sku = '', price = 0, qty = 1, pid = '') {
         <input type="hidden" name="items[${idx}][product_sku]" class="item-sku" value="${sku}">
     `;
     document.getElementById('itemsContainer').appendChild(row);
+    applyPriceLock(row.querySelector('.item-price'));
     recalcItem(idx);
 }
 
@@ -436,7 +544,7 @@ function recalcShipItem(input) {
 }
 
 function refreshShipmentItemOptions() {
-    // Refresh product options in existing shipment item rows if needed
+    syncShipPrices();
 }
 
 function getOrderQtyMap() {
@@ -545,6 +653,12 @@ function updateSummary() {
 
 // Block submit if allocation invalid
 document.getElementById('doForm').addEventListener('submit', function(e) {
+    if (!document.getElementById('customerId').value) {
+        e.preventDefault();
+        alert('Pilih customer terlebih dahulu dari daftar saran.');
+        document.getElementById('customerSearch').focus();
+        return;
+    }
     const errors = validateShipments();
     if (errors.length > 0) {
         e.preventDefault();
@@ -556,6 +670,14 @@ document.getElementById('doForm').addEventListener('submit', function(e) {
 // otherwise start with 1 empty item + 1 empty shipment.
 const oldItems     = @json(old('items', []));
 const oldShipments = @json(old('shipments', []));
+
+// Pulihkan customer yang sudah dipilih bila simpan gagal validasi
+// (alamat penagihan sudah dipulihkan lewat old(), jangan ditimpa).
+{
+    const oldCustomerId = parseInt(document.getElementById('customerId').value || 0);
+    const oldCustomer   = oldCustomerId ? customers.find(c => c.id === oldCustomerId) : null;
+    if (oldCustomer) setSelectedCustomer(oldCustomer, false);
+}
 
 if (Object.keys(oldItems).length > 0) {
     Object.values(oldItems).forEach(it => {
