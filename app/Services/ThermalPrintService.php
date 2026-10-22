@@ -23,7 +23,7 @@ class ThermalPrintService
     public function printReceipt(Transaction $transaction, array $store): void
     {
         $connector = $this->makeConnector();
-        $printer   = new Printer($connector);
+        $printer = new Printer($connector);
 
         try {
             $this->render($printer, $transaction, $store);
@@ -43,8 +43,8 @@ class ThermalPrintService
     public function printDeliverySlip(DeliveryOrder $order): void
     {
         $connector = $this->makeConnector();
-        $printer   = new Printer($connector);
-        $printAt   = now()->format('d/m/Y H:i:s');
+        $printer = new Printer($connector);
+        $printAt = now()->format('d/m/Y H:i:s');
 
         try {
             $this->renderSlipGudang($printer, $order, $printAt);
@@ -65,7 +65,7 @@ class ThermalPrintService
     public function printInvoice(DeliveryOrder $order, array $store, string $type = 'invoice'): void
     {
         $connector = $this->makeConnector();
-        $printer   = new Printer($connector);
+        $printer = new Printer($connector);
 
         try {
             $this->renderInvoice($printer, $order, $store, $type);
@@ -78,7 +78,7 @@ class ThermalPrintService
     private function renderInvoice(Printer $printer, DeliveryOrder $order, array $store, string $type): void
     {
         $isProforma = $type === 'proforma';
-        $docNo      = ($isProforma ? 'PI-' : 'INV-') . $order->order_no;
+        $docNo = ($isProforma ? 'PI-' : 'INV-').$order->order_no;
 
         $this->renderStoreHeader($printer, $store);
 
@@ -87,7 +87,7 @@ class ThermalPrintService
         $printer->setEmphasis(true);
         $printer->text($isProforma ? "PROFORMA INVOICE\n" : "INVOICE\n");
         $printer->setEmphasis(false);
-        $printer->text($docNo . "\n");
+        $printer->text($docNo."\n");
         $printer->setJustification(Printer::JUSTIFY_LEFT);
         $printer->text($this->divider());
 
@@ -109,7 +109,7 @@ class ThermalPrintService
         // ── Items ───────────────────────────────────
         foreach ($order->items as $item) {
             $printer->text($this->wrap($item->product_name));
-            $qtyLine = $this->qty($item->qty) . ' x ' . $this->rp($item->price);
+            $qtyLine = $this->qty($item->qty).' x '.$this->rp($item->price);
             $printer->text($this->twoCol($qtyLine, $this->rp($item->subtotal)));
         }
 
@@ -128,7 +128,7 @@ class ThermalPrintService
             $printer->text($this->wrap('Proforma invoice (estimasi tagihan), bukan bukti pembayaran yang sah.'));
             $printer->setJustification(Printer::JUSTIFY_LEFT);
         } else {
-            $totalPaid   = (float) $order->payments->sum('amount');
+            $totalPaid = (float) $order->payments->sum('amount');
             $outstanding = max(0, (float) $order->total - $totalPaid);
 
             $printer->text($this->twoCol('Dibayar', $this->rp($totalPaid)));
@@ -139,14 +139,14 @@ class ThermalPrintService
             $printer->text($this->divider());
 
             $statusLabel = match ($order->payment_status) {
-                'paid'    => 'LUNAS',
+                'paid' => 'LUNAS',
                 'partial' => 'DP / SEBAGIAN',
-                default   => 'BELUM LUNAS',
+                default => 'BELUM LUNAS',
             };
             $printer->setJustification(Printer::JUSTIFY_CENTER);
             $printer->setEmphasis(true);
             $printer->setTextSize(2, 1);
-            $printer->text($statusLabel . "\n");
+            $printer->text($statusLabel."\n");
             $printer->setTextSize(1, 1);
             $printer->setEmphasis(false);
             $printer->setJustification(Printer::JUSTIFY_LEFT);
@@ -162,9 +162,9 @@ class ThermalPrintService
                     $printer->text($this->twoCol($pmt->methodLabel(), $this->rp($pmt->amount)));
                     $meta = $pmt->payment_date?->format('d/m/Y') ?? '-';
                     if ($pmt->reference_no) {
-                        $meta .= ' Ref: ' . $pmt->reference_no;
+                        $meta .= ' Ref: '.$pmt->reference_no;
                     }
-                    $printer->text($this->wrap('  ' . $meta));
+                    $printer->text($this->wrap('  '.$meta));
                 }
             }
         }
@@ -173,11 +173,11 @@ class ThermalPrintService
 
         // ── Footer ──────────────────────────────────
         $printer->setJustification(Printer::JUSTIFY_CENTER);
-        if (!empty($store['receipt_footer'])) {
+        if (! empty($store['receipt_footer'])) {
             $printer->feed();
             $printer->text($this->wrap($store['receipt_footer']));
         }
-        $printer->text('Dicetak ' . now()->format('d/m/Y H:i') . "\n");
+        $printer->text('Dicetak '.now()->format('d/m/Y H:i')."\n");
         $printer->feed();
         $printer->text("Powered by HPY Solution\n");
         $printer->feed();
@@ -186,18 +186,18 @@ class ThermalPrintService
     private function renderSlipGudang(Printer $printer, DeliveryOrder $order, string $printAt): void
     {
         $printer->setJustification(Printer::JUSTIFY_LEFT);
-        $printer->text($this->wrap('GUDANG - ' . $printAt));
+        $printer->text($this->wrap('GUDANG - '.$printAt));
         $printer->feed();
 
         // Nomor order besar & tebal, di tengah
         $printer->setJustification(Printer::JUSTIFY_CENTER);
         $printer->setEmphasis(true);
         $printer->setTextSize(2, 2);
-        $printer->text(wordwrap($order->order_no, (int) floor(self::WIDTH / 2), "\n", true) . "\n");
+        $printer->text(wordwrap($order->order_no, (int) floor(self::WIDTH / 2), "\n", true)."\n");
         $printer->setTextSize(1, 1);
         $printer->setEmphasis(false);
 
-        $printer->text('Tanggal Order : ' . $this->orderDate($order) . "\n");
+        $printer->text('Tanggal Order : '.$this->orderDate($order)."\n");
         $printer->setEmphasis(true);
         $printer->text($this->wrap($order->customer?->name ?? '-'));
         $printer->setEmphasis(false);
@@ -214,7 +214,7 @@ class ThermalPrintService
     private function renderSlipQc(Printer $printer, DeliveryOrder $order, string $printAt): void
     {
         $printer->setJustification(Printer::JUSTIFY_LEFT);
-        $printer->text($this->wrap('QC - ' . $printAt));
+        $printer->text($this->wrap('QC - '.$printAt));
         $printer->feed();
 
         $printer->text($this->twoCol('Nomor Order', 'Tgl Order'));
@@ -232,7 +232,7 @@ class ThermalPrintService
         $printer->qrCode($order->order_no, Printer::QR_ECLEVEL_M, 6);
         $printer->setEmphasis(true);
         $printer->setTextSize(2, 1);
-        $printer->text(str_pad((string) $order->id, 6, '0', STR_PAD_LEFT) . "\n");
+        $printer->text(str_pad((string) $order->id, 6, '0', STR_PAD_LEFT)."\n");
         $printer->setTextSize(1, 1);
         $printer->setEmphasis(false);
         $printer->setJustification(Printer::JUSTIFY_LEFT);
@@ -252,7 +252,7 @@ class ThermalPrintService
 
         foreach ($order->items as $i => $item) {
             $qty = rtrim(rtrim(number_format((float) $item->qty, 2, ',', ''), '0'), ',');
-            $printer->text($this->twoCol(($i + 1) . '. ' . $item->product_name, $qty));
+            $printer->text($this->twoCol(($i + 1).'. '.$item->product_name, $qty));
         }
     }
 
@@ -270,8 +270,8 @@ class ThermalPrintService
 
         foreach ($shipments as $ship) {
             $printer->setEmphasis(true);
-            $printer->text('Tujuan #' . $ship->sequence . "\n");
-            $name = $ship->recipient_name . ($ship->recipient_phone ? ' - ' . $ship->recipient_phone : '');
+            $printer->text('Tujuan #'.$ship->sequence."\n");
+            $name = $ship->recipient_name.($ship->recipient_phone ? ' - '.$ship->recipient_phone : '');
             $printer->text($this->wrap($name));
             $printer->setEmphasis(false);
             if ($ship->shipping_address) {
@@ -280,7 +280,7 @@ class ThermalPrintService
             if ($ship->delivery_date) {
                 $d = $ship->delivery_date->format('d/m/Y');
                 $t = $ship->delivery_date->format('H:i');
-                $printer->text('Kirim: ' . ($t !== '00:00' ? "$d $t" : $d) . "\n");
+                $printer->text('Kirim: '.($t !== '00:00' ? "$d $t" : $d)."\n");
             }
             $printer->feed();
         }
@@ -300,29 +300,56 @@ class ThermalPrintService
      */
     private function makeConnector()
     {
-        try {
-            if (PHP_OS_FAMILY === 'Windows') {
-                $name = Setting::get('thermal_printer_name', 'EPPOS58');
-                return new WindowsPrintConnector($name);
-            }
+        // Device thermal murah (mis. GEZHI) kadang "Device or resource busy" sesaat
+        // karena job sebelumnya belum selesai melepas handle, atau dua permintaan
+        // print beruntun (struk + kitchen / klik dobel). Coba beberapa kali dengan
+        // jeda singkat sebelum menyerah, supaya tabrakan sesaat tidak langsung gagal.
+        $attempts = 5;
+        $delayUs = 400000; // 0,4 detik antar percobaan
 
-            $device = Setting::get('thermal_printer_device', '/dev/usb/lp1');
+        for ($i = 1; ; $i++) {
+            try {
+                if (PHP_OS_FAMILY === 'Windows') {
+                    $name = Setting::get('thermal_printer_name', 'EPPOS58');
 
-            // Cegah kegagalan diam-diam: kalau device tidak ada atau bukan
-            // character device (mis. proses root sempat membuat file biasa
-            // di path ini saat printer terputus), gagalkan dengan pesan jelas
-            // agar data struk tidak nyasar ke file di disk.
-            if (!file_exists($device)) {
-                throw new \Exception("Device printer '{$device}' tidak ditemukan. Pastikan printer menyala & kabel USB tersambung.");
-            }
-            if (filetype($device) !== 'char') {
-                throw new \Exception("Path '{$device}' bukan device printer (terdeteksi file biasa). Hapus dengan: sudo rm {$device} — lalu colok ulang printer.");
-            }
+                    return new WindowsPrintConnector($name);
+                }
 
-            return new FilePrintConnector($device);
-        } catch (\Throwable $e) {
-            throw new \Exception('Tidak dapat terhubung ke printer: ' . $e->getMessage(), 0, $e);
+                $device = Setting::get('thermal_printer_device', '/dev/usb/lp1');
+
+                // Cegah kegagalan diam-diam: kalau device tidak ada atau bukan
+                // character device (mis. proses root sempat membuat file biasa
+                // di path ini saat printer terputus), gagalkan dengan pesan jelas
+                // agar data struk tidak nyasar ke file di disk.
+                if (! file_exists($device)) {
+                    throw new \Exception("Device printer '{$device}' tidak ditemukan. Pastikan printer menyala & kabel USB tersambung.");
+                }
+                if (filetype($device) !== 'char') {
+                    throw new \Exception("Path '{$device}' bukan device printer (terdeteksi file biasa). Hapus dengan: sudo rm {$device} — lalu colok ulang printer.");
+                }
+
+                return new FilePrintConnector($device);
+            } catch (\Throwable $e) {
+                // Hanya "busy" yang di-retry; error lain (device tak ada, dsb) langsung dilempar.
+                if ($i < $attempts && $this->isBusyError($e)) {
+                    usleep($delayUs);
+
+                    continue;
+                }
+
+                throw new \Exception('Tidak dapat terhubung ke printer: '.$e->getMessage(), 0, $e);
+            }
         }
+    }
+
+    /** Apakah error ini karena device printer sedang sibuk/terkunci sesaat. */
+    private function isBusyError(\Throwable $e): bool
+    {
+        $msg = strtolower($e->getMessage());
+
+        return str_contains($msg, 'resource busy')
+            || str_contains($msg, 'device or resource busy')
+            || str_contains($msg, 'resource temporarily unavailable');
     }
 
     /** Header toko (logo, nama, tagline, alamat, telp, email) + garis pemisah. */
@@ -332,7 +359,7 @@ class ThermalPrintService
 
         $this->printLogo($printer, $store);
 
-        if (!empty($store['store_name'])) {
+        if (! empty($store['store_name'])) {
             $printer->setEmphasis(true);
             $printer->setTextSize(2, 2);
             $printer->text($this->wrap($store['store_name']));
@@ -341,9 +368,9 @@ class ThermalPrintService
         }
 
         foreach (['store_tagline', 'store_address', 'store_phone', 'store_email'] as $key) {
-            if (!empty($store[$key])) {
+            if (! empty($store[$key])) {
                 $prefix = $key === 'store_phone' ? 'Telp: ' : '';
-                $printer->text($this->wrap($prefix . $store[$key]));
+                $printer->text($this->wrap($prefix.$store[$key]));
             }
         }
 
@@ -370,7 +397,7 @@ class ThermalPrintService
         // ── Items ───────────────────────────────────
         foreach ($transaction->items as $item) {
             $printer->text($this->wrap($item->product_name));
-            $qtyLine = $item->quantity . ' x ' . $this->rp($item->price);
+            $qtyLine = $item->quantity.' x '.$this->rp($item->price);
             $printer->text($this->twoCol($qtyLine, $this->rp($item->subtotal)));
         }
 
@@ -385,19 +412,19 @@ class ThermalPrintService
         $printer->text($this->twoCol('Subtotal', $this->rp($transaction->subtotal)));
 
         if ($transaction->discount_amount > 0) {
-            $printer->text($this->twoCol('Diskon', '-' . $this->rp($transaction->discount_amount)));
+            $printer->text($this->twoCol('Diskon', '-'.$this->rp($transaction->discount_amount)));
         }
         if ($transaction->coupon_code && $transaction->coupon_discount > 0) {
-            $printer->text($this->twoCol('Kupon (' . $transaction->coupon_code . ')', '-' . $this->rp($transaction->coupon_discount)));
+            $printer->text($this->twoCol('Kupon ('.$transaction->coupon_code.')', '-'.$this->rp($transaction->coupon_discount)));
         }
         if ($transaction->tax_amount > 0) {
             $printer->text($this->twoCol('Pajak', $this->rp($transaction->tax_amount)));
         }
         if ($transaction->service_charge_amount > 0) {
-            $printer->text($this->twoCol('Service (' . rtrim(rtrim(number_format($transaction->service_charge_pct, 2), '0'), '.') . '%)', $this->rp($transaction->service_charge_amount)));
+            $printer->text($this->twoCol('Service ('.rtrim(rtrim(number_format($transaction->service_charge_pct, 2), '0'), '.').'%)', $this->rp($transaction->service_charge_amount)));
         }
         if ($transaction->pb1_amount > 0) {
-            $printer->text($this->twoCol('PB1 (' . rtrim(rtrim(number_format($transaction->pb1_pct, 2), '0'), '.') . '%)', $this->rp($transaction->pb1_amount)));
+            $printer->text($this->twoCol('PB1 ('.rtrim(rtrim(number_format($transaction->pb1_pct, 2), '0'), '.').'%)', $this->rp($transaction->pb1_amount)));
         }
 
         $printer->text($this->divider());
@@ -407,7 +434,7 @@ class ThermalPrintService
         $printer->text($this->twoCol('TOTAL', $this->rp($transaction->total)));
         $printer->setEmphasis(false);
 
-        $printer->text($this->twoCol('Bayar (' . strtoupper($transaction->payment_method) . ')', $this->rp($transaction->paid_amount)));
+        $printer->text($this->twoCol('Bayar ('.strtoupper($transaction->payment_method).')', $this->rp($transaction->paid_amount)));
         if ($transaction->change_amount > 0) {
             $printer->text($this->twoCol('Kembalian', $this->rp($transaction->change_amount)));
         }
@@ -416,7 +443,7 @@ class ThermalPrintService
 
         // ── Footer ──────────────────────────────────
         $printer->setJustification(Printer::JUSTIFY_CENTER);
-        if (!empty($store['receipt_footer'])) {
+        if (! empty($store['receipt_footer'])) {
             $printer->feed();
             $printer->text($this->wrap($store['receipt_footer']));
         }
@@ -439,7 +466,7 @@ class ThermalPrintService
         }
 
         $path = public_path($logo);
-        if (!is_file($path) || !extension_loaded('gd')) {
+        if (! is_file($path) || ! extension_loaded('gd')) {
             return;
         }
 
@@ -451,17 +478,17 @@ class ThermalPrintService
                 return;
             }
 
-            $w  = imagesx($src);
-            $h  = imagesy($src);
+            $w = imagesx($src);
+            $h = imagesy($src);
             $tw = min($w, $maxWidth);
             $th = (int) max(1, round($h * $tw / $w));
 
             $canvas = imagecreatetruecolor($tw, $th);
-            $white  = imagecolorallocate($canvas, 255, 255, 255);
+            $white = imagecolorallocate($canvas, 255, 255, 255);
             imagefill($canvas, 0, 0, $white);
             imagecopyresampled($canvas, $src, 0, 0, 0, 0, $tw, $th, $w, $h);
 
-            $tmp = tempnam(sys_get_temp_dir(), 'poslogo') . '.png';
+            $tmp = tempnam(sys_get_temp_dir(), 'poslogo').'.png';
             imagepng($canvas, $tmp);
             imagedestroy($src);
             imagedestroy($canvas);
@@ -488,7 +515,7 @@ class ThermalPrintService
     /** Format angka jadi "Rp 1.000". */
     private function rp($amount): string
     {
-        return 'Rp ' . number_format((float) $amount, 0, ',', '.');
+        return 'Rp '.number_format((float) $amount, 0, ',', '.');
     }
 
     /** Baris dua kolom: label kiri, nilai kanan, dipisah spasi. */
@@ -498,21 +525,21 @@ class ThermalPrintService
         if ($space < 1) {
             // Kolom terlalu panjang: potong label agar muat.
             $maxLeft = max(0, self::WIDTH - mb_strlen($right) - 1);
-            $left    = mb_substr($left, 0, $maxLeft);
-            $space   = self::WIDTH - mb_strlen($left) - mb_strlen($right);
+            $left = mb_substr($left, 0, $maxLeft);
+            $space = self::WIDTH - mb_strlen($left) - mb_strlen($right);
         }
 
-        return $left . str_repeat(' ', max(1, $space)) . $right . "\n";
+        return $left.str_repeat(' ', max(1, $space)).$right."\n";
     }
 
     /** Bungkus teks panjang agar tidak melebihi lebar kertas. */
     private function wrap(string $text): string
     {
-        return wordwrap($text, self::WIDTH, "\n", true) . "\n";
+        return wordwrap($text, self::WIDTH, "\n", true)."\n";
     }
 
     private function divider(): string
     {
-        return str_repeat('-', self::WIDTH) . "\n";
+        return str_repeat('-', self::WIDTH)."\n";
     }
 }
