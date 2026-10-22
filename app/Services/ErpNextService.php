@@ -1875,6 +1875,29 @@ class ErpNextService
         }
     }
 
+    /**
+     * True selama dokumen masih ada di ERP. Hanya mengembalikan false bila ERP
+     * secara eksplisit bilang tidak ada (404 / DoesNotExist). Error lain
+     * (jaringan, izin) dianggap "masih ada" supaya tidak memicu pembuatan DN
+     * dobel saat ERP sekadar tak terjangkau.
+     */
+    private function erpDocExists(string $doctype, string $name): bool
+    {
+        try {
+            $this->client->get("/api/resource/{$doctype}/".rawurlencode($name).'?fields='.urlencode(json_encode(['name'])));
+
+            return true;
+        } catch (RequestException $e) {
+            if ($e->hasResponse() && $e->getResponse()->getStatusCode() === 404) {
+                return false;
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            return true;
+        }
+    }
+
     private function cancelDoc(string $doctype, string $name): void
     {
         $this->client->put("/api/resource/{$doctype}/".rawurlencode($name), [
@@ -1895,7 +1918,17 @@ class ErpNextService
         // stok kurang) tidak dibuat ulang — cukup diselesaikan submit-nya, supaya sync
         // ulang tidak menumpuk Delivery Note baru untuk pengiriman yang sama.
         if (! empty($shipment->erp_delivery_note)) {
-            return $this->submitOrKeepDraftDeliveryNote($shipment, $shipment->erp_delivery_note);
+            // Tapi DN itu bisa sudah dihapus manual di ERP. Kalau benar hilang,
+            // kosongkan referensinya supaya sync membuat DN baru — bukan terus
+            // mencoba submit nomor yang sudah tiada (idempotency guard yang
+            // kalau tidak begini akan mentok Draft selamanya).
+            if ($this->erpDocExists('Delivery Note', $shipment->erp_delivery_note)) {
+                return $this->submitOrKeepDraftDeliveryNote($shipment, $shipment->erp_delivery_note);
+            }
+            Log::warning('DN tersimpan tidak ada lagi di ERP, reset untuk dibuat ulang', [
+                'shipment' => $shipment->id, 'dn' => $shipment->erp_delivery_note,
+            ]);
+            $shipment->update(['erp_delivery_note' => null, 'erp_sync_status' => 'pending', 'erp_sync_error' => null]);
         }
 
         $order = $shipment->order;
