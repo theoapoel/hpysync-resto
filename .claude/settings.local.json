@@ -187,7 +187,10 @@
       "PowerShell(git -C c:\\\\xampp\\\\htdocs\\\\resto-pos add app/Services/ErpNextService.php docs/PLAYBOOK.md)",
       "PowerShell(git -C c:\\\\xampp\\\\htdocs\\\\resto-pos commit -F \"C:\\\\Users\\\\LENOVO\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--xampp-htdocs-resto-pos\\\\594a9814-a250-4984-b1b8-0a36584f6245\\\\scratchpad\\\\msg.txt\")",
       "PowerShell(git -C c:\\\\xampp\\\\htdocs\\\\resto-pos push origin main)",
-      "PowerShell(git -C c:\\\\xampp\\\\htdocs\\\\resto-pos push hpy main)"
+      "PowerShell(git -C c:\\\\xampp\\\\htdocs\\\\resto-pos push hpy main)",
+      "PowerShell(./vendor/bin/pint --test app/Services/ThermalPrintService.php app/Http/Controllers/DeliveryOrderController.php)",
+      "PowerShell(php artisan route:list --name=direct-print-slip)",
+      "Bash(ssh -o BatchMode=yes -i ~/.ssh/id_rsa -p 2222 sinona@sinona-new.hpy.co.id 'grep -n \"root\\\\|listen\" /etc/nginx/conf.d/pos.conf; cd ~/apps/hpy-pos && git log --oneline main..origin/main | wc -l && git diff --stat HEAD -- app/Http/Controllers/BackupController.php | tail -1; ls -d ~/apps/hpy-pos/resources/js 2>/dev/null; grep -c \"\" ~/apps/hpy-pos/resources/views/delivery-orders/print-slip.blade.php')"
     ],
     "additionalDirectories": [
       "\\tmp"

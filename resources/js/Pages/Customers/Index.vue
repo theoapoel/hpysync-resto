@@ -53,6 +53,41 @@ async function pushCustomer(customer) {
         pushingId.value = null;
     }
 }
+
+// ── Sinkron / perbaiki mapping ERP ─────────────────────────────────
+// Satu tombol untuk semua kondisi: kalau mapping sudah benar → konfirmasi;
+// kalau rusak (nama ERP sudah dihapus/diganti) → arahkan ulang ke Customer
+// ERP yang cocok; kalau belum pernah → push. Mencegah SO/DN/Payment FAILED
+// gara-gara mapping customer nyasar.
+const reconcilingId = ref(null);
+const STATUS_MSG = {
+    synced: 'Mapping sudah benar',
+    fixed: 'Mapping diperbaiki →',
+    linked: 'Dipetakan ke customer HPY →',
+    pushed: 'Dibuat di HPY →',
+};
+async function reconcileCustomer(customer) {
+    reconcilingId.value = customer.id;
+    try {
+        const resp = await fetch(customer.reconcile_url, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                Accept: 'application/json',
+            },
+        });
+        const data = await resp.json();
+        if (data.success) {
+            const label = STATUS_MSG[data.status] ?? 'Selesai';
+            toast(data.docname ? `${label} ${data.docname}` : label, 'success');
+            router.reload();
+        } else {
+            toast('Gagal: ' + (data.error ?? 'tidak ada customer HPY yang cocok — perlu dicek manual'), 'error');
+        }
+    } finally {
+        reconcilingId.value = null;
+    }
+}
 </script>
 
 <template>
@@ -83,11 +118,17 @@ async function pushCustomer(customer) {
                             <td>{{ c.phone ?? '-' }}</td>
                             <td>{{ c.email ?? '-' }}</td>
                             <td class="money text-blue">{{ rupiah(c.total_purchase) }}</td>
-                            <td><span class="badge" :class="c.erp_synced ? 'badge-green' : 'badge-gray'">{{ c.erp_synced ? '✓ Synced' : 'Local' }}</span></td>
                             <td>
+                                <span class="badge" :class="c.erp_synced ? 'badge-green' : 'badge-gray'" :title="c.erp_name ?? ''">{{ c.erp_synced ? '✓ Synced' : 'Local' }}</span>
+                            </td>
+                            <td style="display:flex;gap:6px">
                                 <button v-if="!c.erp_synced" class="btn btn-ghost btn-sm" :disabled="pushingId === c.id" @click="pushCustomer(c)">
                                     <span v-if="pushingId === c.id" class="spinner" style="border-color:rgba(0,0,0,.2);border-top-color:var(--blue)"></span>
                                     <i v-else class="fas fa-upload"></i> Push ERP
+                                </button>
+                                <button class="btn btn-ghost btn-sm" :disabled="reconcilingId === c.id" title="Cek & betulkan mapping ke HPY" @click="reconcileCustomer(c)">
+                                    <span v-if="reconcilingId === c.id" class="spinner" style="border-color:rgba(0,0,0,.2);border-top-color:var(--blue)"></span>
+                                    <i v-else class="fas fa-rotate"></i> Sinkron ERP
                                 </button>
                             </td>
                         </tr>

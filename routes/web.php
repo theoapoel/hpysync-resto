@@ -357,6 +357,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/pull-delivery-prices', [ErpSyncController::class, 'pullDeliveryPrices'])->name('pull-delivery-prices');
             Route::post('/pull-coupons', [ErpSyncController::class, 'pullCoupons'])->name('pull-coupons');
             Route::post('/push-customer/{customer}', [ErpSyncController::class, 'pushCustomer'])->name('push-customer');
+            Route::post('/reconcile-customer/{customer}', [ErpSyncController::class, 'reconcileCustomer'])->name('reconcile-customer');
         });
         Route::middleware('role:admin')->group(function () {
             Route::post('/test-connection', [ErpSyncController::class, 'testConnection'])->name('test');

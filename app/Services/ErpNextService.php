@@ -828,6 +828,50 @@ class ErpNextService
         }
     }
 
+    /**
+     * Pastikan mapping customer ke ERP benar, dan betulkan bila perlu. Dipakai
+     * tombol "Sinkron ERP" di menu Customer supaya operator bisa memperbaiki
+     * sendiri tanpa CLI. Status: synced (sudah benar) | fixed (mapping rusak
+     * diarahkan ulang ke Customer ERP yang cocok) | linked (dipetakan ke yang
+     * sudah ada) | pushed (dibuat baru) | failed.
+     */
+    public function reconcileCustomer(Customer $customer): array
+    {
+        if (empty($this->baseUrl)) {
+            return ['success' => false, 'status' => 'unconfigured', 'error' => 'ERP HPY belum dikonfigurasi.'];
+        }
+
+        // Sudah punya mapping dan masih valid → tidak ada yang perlu dilakukan.
+        if (! empty($customer->erp_customer_name) && $this->erpRecordExists('Customer', $customer->erp_customer_name)) {
+            return ['success' => true, 'status' => 'synced', 'docname' => $customer->erp_customer_name];
+        }
+
+        // Mapping rusak (menunjuk Customer ERP yang sudah tiada) → cari padanan by nama.
+        if (! empty($customer->erp_customer_name)) {
+            $match = $this->findCustomerByName($customer->name);
+            if ($match) {
+                $previous = $customer->erp_customer_name;
+                $customer->update(['erp_customer_name' => $match, 'erp_last_sync' => now()]);
+                $this->logSync('customer', $customer->id, $customer->code, 'success', ['relink' => [$previous, $match]], null, $match);
+
+                return ['success' => true, 'status' => 'fixed', 'docname' => $match, 'previous' => $previous];
+            }
+            // Tidak ada padanan → Customer memang tak ada di ERP; kosongkan mapping
+            // rusak lalu buat/pakai ulang lewat pushCustomer (idempoten).
+            $customer->update(['erp_customer_name' => null]);
+        }
+
+        // Belum/kembali tanpa mapping → push (reuse bila sudah ada, create bila belum).
+        $res = $this->pushCustomer($customer);
+        if (empty($res['success'])) {
+            $res['status'] = 'failed';
+        } else {
+            $res['status'] = ! empty($res['reused']) ? 'linked' : 'pushed';
+        }
+
+        return $res;
+    }
+
     // =========================================================
     // PUSH CUSTOMER TO ERPNext
     // =========================================================

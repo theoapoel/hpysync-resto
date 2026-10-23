@@ -323,6 +323,11 @@ class ErpSyncController extends Controller
         return response()->json($result);
     }
 
+    public function reconcileCustomer(Customer $customer)
+    {
+        return response()->json($this->erp->reconcileCustomer($customer));
+    }
+
     public function pullDeliveryPrices()
     {
         $platforms = [
