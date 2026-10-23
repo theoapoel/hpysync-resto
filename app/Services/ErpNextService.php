@@ -1898,6 +1898,47 @@ class ErpNextService
         }
     }
 
+    /** Wrapper publik erpDocExists untuk dipakai command rekonsiliasi. */
+    public function erpRecordExists(string $doctype, string $name): bool
+    {
+        return $this->erpDocExists($doctype, $name);
+    }
+
+    /**
+     * Cari Customer di ERP berdasarkan customer_name. Mengembalikan docname yang
+     * paling tepat: utamakan yang namanya persis sama (record asli tanpa suffix
+     * " - 1" yang ditambahkan ERP saat terjadi duplikat), kalau tidak ada ambil
+     * yang terlama. null bila tak ada sama sekali.
+     */
+    public function findCustomerByName(string $customerName): ?string
+    {
+        try {
+            $response = $this->client->get('/api/resource/Customer', [
+                'query' => [
+                    'fields' => '["name","customer_name","creation"]',
+                    'filters' => json_encode([['customer_name', '=', $customerName]]),
+                    'order_by' => 'creation asc',
+                    'limit_page_length' => 50,
+                ],
+            ]);
+            $rows = json_decode($response->getBody()->getContents(), true)['data'] ?? [];
+            if (empty($rows)) {
+                return null;
+            }
+            foreach ($rows as $r) {
+                if (($r['name'] ?? null) === $customerName) {
+                    return $r['name'];
+                }
+            }
+
+            return $rows[0]['name'] ?? null;
+        } catch (\Exception $e) {
+            Log::warning('findCustomerByName gagal', ['customer' => $customerName, 'error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
     private function cancelDoc(string $doctype, string $name): void
     {
         $this->client->put("/api/resource/{$doctype}/".rawurlencode($name), [
