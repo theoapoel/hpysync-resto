@@ -833,6 +833,25 @@ class ErpNextService
     // =========================================================
     public function pushCustomer(Customer $customer): array
     {
+        // Idempoten 1: sudah terpetakan ke ERP → jangan sentuh. Mencegah pembuatan
+        // ulang yang akan memicu duplikat "<nama> - 1" dan tidak mengubah mapping
+        // yang sudah dipakai transaksi berjalan.
+        if (! empty($customer->erp_customer_name)) {
+            return ['success' => true, 'docname' => $customer->erp_customer_name];
+        }
+
+        // Idempoten 2: kalau Customer dengan nama ini SUDAH ada di ERP, pakai yang
+        // itu alih-alih POST baru. Tanpa ini ERP tidak menolak melainkan membuat
+        // duplikat bersuffix ("- 1", "- 2"), lalu mapping bisa nyangkut saat
+        // duplikatnya dirapikan. findCustomerByName mengutamakan record tanpa suffix.
+        $existing = $this->findCustomerByName($customer->name);
+        if ($existing) {
+            $customer->update(['erp_customer_name' => $existing, 'erp_last_sync' => now()]);
+            $this->logSync('customer', $customer->id, $customer->code, 'success', ['reuse' => $existing], null, $existing);
+
+            return ['success' => true, 'docname' => $existing, 'reused' => true];
+        }
+
         $posClass = Setting::get('pos_class', '');
 
         $payload = [
