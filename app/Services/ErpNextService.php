@@ -2279,6 +2279,12 @@ class ErpNextService
             'party' => $customer,
             'party_name' => $order->customer->name,
             'posting_date' => $payment->payment_date->format('Y-m-d'),
+            // ERPNext mewajibkan Reference No + Reference Date untuk Payment Entry
+            // bertipe Bank (Transfer/QRIS/Card). Selalu dikirim; untuk mode Cash
+            // kedua field ini diabaikan ERP, jadi aman diisi tanpa syarat. Fallback
+            // ke nomor DO bila user tidak mengisi No. Referensi supaya sync tak gagal.
+            'reference_no' => $payment->reference_no ?: ('DO-'.$order->order_no),
+            'reference_date' => $payment->payment_date->format('Y-m-d'),
             'mode_of_payment' => $modeOfPayment,
             'paid_amount' => (float) $payment->amount,
             'received_amount' => (float) $payment->amount,
